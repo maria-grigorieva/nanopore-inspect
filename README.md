@@ -40,7 +40,8 @@ NanoporeInspect empowers users to efficiently evaluate the quality of nanopore s
 * confsmooth == 1.0.0
 
 # Running
-1) Run app.py
+1) Set up environment variables: FLASK_SECRET_KEY, MAIL_USERNAME, MAIL_PASSWORD
+2) Run app.py
 2) Start redis: brew services start redis (i.e. on Mac OS)
 2) Start celery worker: celery -A app.celery_app worker --loglevel INFO
 3) Start celery beat: celery -A app.celery_app beat --loglevel INFO
