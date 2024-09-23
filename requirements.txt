@@ -2,6 +2,7 @@ amqp==5.2.0
 billiard==4.2.1
 biopython==1.84
 blinker==1.8.2
+Bootstrap-Flask==2.4.0
 celery==5.4.0
 certifi==2024.8.30
 charset-normalizer==3.3.2
@@ -12,7 +13,6 @@ click-repl==0.3.0
 confsmooth==1.0.0
 dominate==2.9.1
 Flask==3.0.3
-Flask-Bootstrap==3.3.7.1
 Flask-Mail==0.10.0
 Flask-WTF==1.2.1
 idna==3.10

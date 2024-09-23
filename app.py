@@ -42,7 +42,7 @@ def celery_init_app(app: Flask) -> Celery:
     return celery_app
 
 app = Flask(__name__)
-app.secret_key = 'tO$&!|0wkamvVia0?n$NqIRVWOG'
+app.secret_key = os.getenv('FLASK_SECRET_KEY')
 app.config['UPLOAD_FOLDER'] = 'static/sessions/'
 app.config.from_mapping(
     CELERY=dict(

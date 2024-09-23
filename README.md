@@ -22,7 +22,7 @@ NanoporeInspect empowers users to efficiently evaluate the quality of nanopore s
 * pandas == 2.2.3
 * flask == 3.0.3
 * requests == 2.32.3
-* flask_bootstrap == 3.3.7.1
+* Bootstrap-Flask == 2.4.0
 * flask_wtf == 1.2.1
 * plotly == 5.24.1
 * werkzeug == 3.0.4
