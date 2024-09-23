@@ -1,0 +1,7 @@
+/static/sessions/
+/input/
+/.ipynb_checkpoints/
+.idea/
+__pycache__/
+source/__pycache__/
+celerybeat-schedule
