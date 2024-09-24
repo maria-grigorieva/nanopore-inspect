@@ -20,7 +20,14 @@
         <div class="form-group">
                 <label for="session_name">Session Name</label>
                 {{ form.session_name(class="form-control-file", data_bs_toggle="tooltip", data_bs_placement="top", title="Session name can contain only latin letters, numbers and _") }}
-            </div>
+                {% if form.session_name.errors %}
+                <div class="text-danger">
+                    {% for error in form.session_name.errors %}
+                        <p>{{ error }}</p>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
     </li>
     <li class="list-group-item"><h5>Sequences to search:</h5></li>
 
@@ -51,6 +58,13 @@
       <div class="form-group">
                 <label for="threshold">Threshold</label>
                 {{ form.threshold(size=10, class="form-control", data_bs_toggle="tooltip", data_bs_placement="top", title="Enter a threshold for the string similarity level [0,1]") }}
+                {% if form.threshold.errors %}
+                    <div class="text-danger">
+                        {% for error in form.threshold.errors %}
+                            <p>{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
       </div>
   </li>
   <li class="list-group-item">
@@ -63,12 +77,26 @@
       <div class="form-group">
                 <label for="email">Email</label>
                 {{ form.email(size=50, class="form-control") }}
+                  {% if form.email.errors %}
+                    <div class="text-danger">
+                        {% for error in form.email.errors %}
+                            <p>{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
             </div>
   </li>
   <li class="list-group-item">
        <div class="form-group">
                 <label for="filename">Select File</label>
                 {{ form.file(class="form-control-file") }}
+                   {% if form.file.errors %}
+                    <div class="text-danger">
+                        {% for error in form.file.errors %}
+                            <p>{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                {% endif %}
             </div>
   </li>
   <li class="list-group-item">

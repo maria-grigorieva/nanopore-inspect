@@ -7,10 +7,11 @@ from flask_bootstrap import Bootstrap5
 from flask_wtf import FlaskForm, CSRFProtect
 from plotly.subplots import make_subplots
 from werkzeug.utils import secure_filename
-from flask_wtf.file import FileField, FileRequired
-from wtforms.validators import DataRequired, Length
+from flask_wtf.file import FileField, FileRequired, FileAllowed
+from wtforms.validators import DataRequired, Length, NumberRange, Email, ValidationError
 from wtforms import StringField, FloatField, SubmitField, FieldList, FormField, Form, SelectField, IntegerField
 import os
+import re
 import configparser
 from source import sequence_distribution, visualization
 import json
@@ -42,7 +43,7 @@ def celery_init_app(app: Flask) -> Celery:
     return celery_app
 
 app = Flask(__name__)
-app.secret_key = os.getenv('FLASK_SECRET_KEY')
+app.secret_key = os.environ.get('FLASK_SECRET_KEY')
 app.config['UPLOAD_FOLDER'] = 'static/sessions/'
 app.config.from_mapping(
     CELERY=dict(
@@ -82,12 +83,26 @@ class InputForm(FlaskForm):
     session_name = StringField('Session Name', validators=[DataRequired()])
     items = FieldList(FormField(SequenceItem), min_entries=1, max_entries=10)
     limit = IntegerField('Limit', default=0)
-    threshold = FloatField('Threshold', validators=[DataRequired()], default=0.9)
+    threshold = FloatField('Threshold', validators=[DataRequired(), NumberRange(min=0.1, max=1.0)], default=0.9)
     smoothing = SelectField('Smoothing',
                 choices=[('None','None'),('LOWESS','lowess'),('Whittaker Smoother', 'whittaker'),('savgol','savgol'),('confsmooth','confsmooth')])
-    email = StringField('Email', validators=[DataRequired()])
-    file = FileField('fastq_file', validators=[FileRequired()])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    file = FileField('fastq_file', validators=[FileRequired(), FileAllowed(['fastq'], 'Only .fastq files are allowed!')])
     submit = SubmitField('Submit')
+
+    # Custom validator for session_name
+    def validate_session_name(self, field):
+        # Only allow latin letters, numbers, and underscore (_)
+        if not re.match(r'^[a-zA-Z0-9_]+$', field.data):
+            raise ValidationError("Session name must contain only letters, numbers, and underscore (_)")
+
+    # Custom validator for file type
+    def validate_file(self, field):
+        # Check that the file has a .fastq extension
+        if field.data:
+            filename = field.data.filename
+            if not filename.lower().endswith('.fastq'):
+                raise ValidationError('File must be in .fastq format')
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -104,6 +119,7 @@ def read_config(directory_path):
 def process_directories(base_dir):
     all_sessions = []
     print(os.listdir(base_dir))
+    print(os.getcwd())
     for directory in os.listdir(base_dir):
         if os.path.isdir(os.path.join(base_dir, directory)):
             if os.path.isfile(os.path.join(base_dir, directory, 'config.ini')):
@@ -118,6 +134,11 @@ def process_directories(base_dir):
                                 'imageURL': imageURL}
                 all_sessions.append(session_dict)
     return all_sessions
+
+@app.route('/check')
+def check():
+    current_directory = os.getcwd()  # Get the current working directory
+    return f"Current working directory: {current_directory}"
 
 def gerenate_config(sequences,
                     parameters):
@@ -198,6 +219,7 @@ def sessions():
 @app.route('/experiment/<sessionID>')
 def experiment(sessionID):
     base_directory = app.config['UPLOAD_FOLDER']
+    # app.config['UPLOAD_FOLDER']
     directory_path = os.path.join(base_directory, sessionID)
     parameters, sequences = read_config(directory_path)
     parameters['filename'] = os.path.basename(parameters['input_file'])
@@ -211,6 +233,7 @@ def experiment(sessionID):
 @app.route('/delete/<sessionID>')
 def delete(sessionID):
     base_directory = app.config['UPLOAD_FOLDER']
+        #app.config['UPLOAD_FOLDER']
     directory_path = os.path.join(base_directory, sessionID)
     try:
         shutil.rmtree(directory_path)
@@ -298,6 +321,8 @@ def send_email_test():
     recipient = 'magsend@gmail.com'
     subject = 'TEST from NanoporeInspect'
     message_body = 'Test from NanoporeInspect'
+    sender = app.config['MAIL_USERNAME']
+    print(sender)
 
     msg = Message(
         subject=subject,
