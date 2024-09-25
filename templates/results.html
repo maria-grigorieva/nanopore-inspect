@@ -90,9 +90,8 @@
     </div>
     </div>
 
-    <div id='chart1'>
-{#        {{plots['hist1'] | safe}}#}
-    </div>
+    <div id='chart1'></div>
+    <div id='chart2'></div>
 
 <div id='stats_tables'>
  <div class="container">
@@ -207,18 +206,20 @@
         <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
         <script type='text/javascript'>
           var graph1 = {{plots['hist1'] | safe}};
-          var graphDiv = document.getElementById('chart1');
+          var graph2 = {{plots['hist2'] | safe}};
+          var graphDiv1 = document.getElementById('chart1');
+          var graphDiv2 = document.getElementById('chart2');
           var sequences = {{ sequences | safe }};
           Plotly.plot('chart1',graph1,{});
+          Plotly.plot('chart2',graph2,{});
 
-          graphDiv.on('plotly_relayout',
+          graphDiv1.on('plotly_relayout',
                 function(eventdata){
                     start_index = Math.round(eventdata['xaxis.range[0]']);
                     end_index = Math.round(eventdata['xaxis.range[1]']);
                     if (eventdata['xaxis.autorange'] != true) {
                         var results = [];
                         sequences.forEach(function(item) {
-                            {#if (item.value_counts != None) {#}
                                 var sumReads = 0;
                                 var sumProportion = 0;
 
@@ -256,15 +257,10 @@
                             var table = document.getElementById('table_selection');
                             let tbody = table.getElementsByTagName("tbody")[0];
                             var tableContent = '';
-                            {##}
-                            {#var tableContent = '<h4>'+title+'</h4><table border="1" id="table_selection" class="table table-hover table-sm small">';#}
-                            {#tableContent += '<tr><th>Type</th><th>Reads</th><th>Proportion</th></tr>';#}
 
                               results.forEach(function(item) {
                                 tableContent += '<tr><td>' + item.type + '</td><td>' + item.reads + '</td><td>' + item.proportion + '</td><td class="consensus" reference='+ item.sequence+'>'+item.consensus+'</td></tr>';
                               });
-
-                              {#tableContent += '</table>';#}
                             tbody.innerHTML = tableContent;
 
                             $('#table_selection').columnHeatmap({
@@ -293,17 +289,6 @@
                         });
                         tbody.innerHTML = tableContent;
                     }
-
-                    {#var div = document.getElementById('selection');#}
-                    {#div.innerHTML = tableContent;#}
-                    {##}
-                    {#alert( 'Summary for the selection' + '\n\n' +#}
-                    {#    'Event data:' + '\n' +#}
-                    {#     JSON.stringify(eventdata) + '\n\n' +#}
-                    {#    'x-axis start:' + start_index + '\n' +#}
-                    {#    'x-axis end:' + end_index + '\n' +#}
-                    {#    JSON.stringify(results)#}
-                    {#);#}
                 }
           );
 
@@ -314,8 +299,7 @@
             });
           $('#searched_sequences').columnHeatmap({
               columns: [4],
-              inverse:false,
-              {#colorStartPoint: 240#}
+              inverse:false
             });
 
           $('#peaks_statistics').columnHeatmap({

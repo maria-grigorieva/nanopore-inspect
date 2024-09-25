@@ -1,34 +1,24 @@
 from datetime import datetime
-
-import pandas as pd
 from flask import Flask, render_template, request, url_for, redirect, session, jsonify
-import requests
 from flask_bootstrap import Bootstrap5
 from flask_wtf import FlaskForm, CSRFProtect
-from plotly.subplots import make_subplots
 from werkzeug.utils import secure_filename
 from flask_wtf.file import FileField, FileRequired, FileAllowed
 from wtforms.validators import DataRequired, Length, NumberRange, Email, ValidationError
 from wtforms import StringField, FloatField, SubmitField, FieldList, FormField, Form, SelectField, IntegerField
-import os
 import re
 import configparser
 from source import sequence_distribution, visualization
 import json
 import plotly
-import plotly.graph_objects as go
-from numpyencoder import NumpyEncoder
-from plotly.offline import iplot
 import shutil
 from celery import Celery, Task
 from celery import shared_task
-from time import sleep
 from celery.result import AsyncResult
 import uuid
 from pathlib import Path
 from flask_mail import Mail, Message
 import os
-
 
 def celery_init_app(app: Flask) -> Celery:
     class FlaskTask(Task):
@@ -118,15 +108,13 @@ def read_config(directory_path):
 
 def process_directories(base_dir):
     all_sessions = []
-    print(os.listdir(base_dir))
-    print(os.getcwd())
     for directory in os.listdir(base_dir):
         if os.path.isdir(os.path.join(base_dir, directory)):
             if os.path.isfile(os.path.join(base_dir, directory, 'config.ini')):
                 session_id = directory
                 parameters, sequences = read_config(os.path.join(base_dir, directory))
-                imageURL = os.path.join(base_dir, directory, 'distribution.png') if \
-                    os.path.isfile(os.path.join(base_dir, directory, 'distribution.png')) \
+                imageURL = os.path.join(base_dir, directory, 'distribution_proportional.png') if \
+                    os.path.isfile(os.path.join(base_dir, directory, 'distribution_proportional.png')) \
                     else None
                 session_dict = {'sessionID': session_id,
                                 'parameters': parameters,
@@ -167,10 +155,6 @@ def index():
 
         file = form.file.data
         filename = secure_filename(file.filename)
-        filename_noext = os.path.splitext(os.path.basename(filename))[0]
-        # create a new directory named as a file name without an extension
-        # new_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), app.config['UPLOAD_FOLDER'],
-        #                        filename_noext)
         new_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), app.config['UPLOAD_FOLDER'],
                                str(form.session_name.data))
         try:
@@ -179,7 +163,6 @@ def index():
             pass
         # save fastq file to the local server
         file.save(os.path.join(new_dir, filename))
-        # session['session'] = new_dir
         session['session'] = form.session_name.data
         parameters = {'limit': limit,
                      'threshold': threshold,
@@ -208,11 +191,7 @@ def contacts():
 @app.route('/sessions')
 def sessions():
     base_directory = app.config['UPLOAD_FOLDER']
-    #print(base_directory)
     all_sessions_list = process_directories(base_directory)
-    #
-    # for session_info in all_sessions_list:
-    #     print(session_info)
 
     return render_template('sessions.html', sessions=all_sessions_list, page='sessions')
 #
@@ -233,7 +212,6 @@ def experiment(sessionID):
 @app.route('/delete/<sessionID>')
 def delete(sessionID):
     base_directory = app.config['UPLOAD_FOLDER']
-        #app.config['UPLOAD_FOLDER']
     directory_path = os.path.join(base_directory, sessionID)
     try:
         shutil.rmtree(directory_path)
@@ -254,11 +232,14 @@ def data_processing(data):
     with open(os.path.join(data['parameters']['new_dir'], 'sequences.json'), 'w') as f:
         json.dump(output_data, f, default=str)
 
-    fig1 = visualization.plot_distribution_proportions(output_data['sequences'], data['parameters']['smoothing'])
-    distrJSON = json.dumps(fig1, cls=plotly.utils.PlotlyJSONEncoder)
+    fig1 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'], mode='proportion')
+    fig2 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'], mode='reads')
 
-    with open(os.path.join(data['parameters']['new_dir'], 'distribution.png'), "wb") as distribution_file:
-        fig1.write_image(distribution_file)
+    with open(os.path.join(data['parameters']['new_dir'], 'distribution_proportional.png'), "wb") as f1:
+        fig1.write_image(f1)
+    with open(os.path.join(data['parameters']['new_dir'], 'distribution_absolute.png'),
+              "wb") as f2:
+        fig2.write_image(f2)
 
     return {'session_id': Path(data['parameters']['new_dir']).name,
             'email': data['parameters']['email']}
@@ -271,8 +252,13 @@ def results():
             with open(os.path.join(data['parameters']['new_dir'], 'sequences.json'), 'r') as f1:
                 output_data = json.load(f1)
 
-                fig1 = visualization.plot_distribution_proportions(output_data['sequences'], data['parameters']['smoothing'])
-                distrJSON = json.dumps(fig1, cls=plotly.utils.PlotlyJSONEncoder)
+                fig1 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'],
+                                                       mode='proportion')
+                fig2 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'],
+                                                       mode='reads')
+
+                distrJSON1 = json.dumps(fig1, cls=plotly.utils.PlotlyJSONEncoder)
+                distrJSON2 = json.dumps(fig2, cls=plotly.utils.PlotlyJSONEncoder)
                 sequences = [{'type': seq['type'],
                               'sequence': seq['sequence'],
                               'peaks': seq['peaks'] if 'peaks' in seq else [],
@@ -285,7 +271,8 @@ def results():
                                     'avg_noise_level': output_data['parameters']['avg_noise_level']}
 
                 return render_template('results.html',
-                                       plots={'hist1': distrJSON},
+                                       plots={'hist1': distrJSON1,
+                                              'hist2': distrJSON2},
                                        data=data,
                                        sequences=sequences,
                                        fastq_parameters=fastq_parameters,

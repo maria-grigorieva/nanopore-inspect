@@ -26,7 +26,6 @@ pip install -r requirements.txt
 * pandas == 2.2.3
 * redis==5.0.8
 * flask == 3.0.3
-* flask-mail==0.10.0
 * requests == 2.32.3
 * Bootstrap-Flask == 2.4.0
 * flask_wtf == 1.2.1
@@ -44,6 +43,7 @@ pip install -r requirements.txt
 * statsmodels == 0.14.3
 * whittaker_eilers == 0.1.3
 * confsmooth == 1.0.0
+* email-validator == 2.2.0
 ```
 # Running
 1) Set up environment variables: ```FLASK_SECRET_KEY, MAIL_USERNAME, MAIL_PASSWORD```
