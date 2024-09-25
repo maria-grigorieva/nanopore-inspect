@@ -16,9 +16,13 @@ NanoporeInspect empowers users to efficiently evaluate the quality of nanopore s
 # Installation
 - python 3.9 (miniconda)
 - install Redis
-- create virtual environment from the requirements.txt
+- create virtual environment from the requirements.txt 
+```
+pip install -r requirements.txt
+```
 
 ## Required libraries: 
+```
 * pandas == 2.2.3
 * redis==5.0.8
 * flask == 3.0.3
@@ -40,12 +44,13 @@ NanoporeInspect empowers users to efficiently evaluate the quality of nanopore s
 * statsmodels == 0.14.3
 * whittaker_eilers == 0.1.3
 * confsmooth == 1.0.0
-
+```
 # Running
-1) Set up environment variables: FLASK_SECRET_KEY, MAIL_USERNAME, MAIL_PASSWORD
-2) Create **sessions** director in **static**, and don't forget to change permissions to **static** folder to 777
-3) Run app.py
-4) Start redis: brew services start redis (i.e. on Mac OS)
-5) Start celery worker: celery -A app.celery_app worker --loglevel INFO
-6) Start celery beat: celery -A app.celery_app beat --loglevel INFO
+1) Set up environment variables: ```FLASK_SECRET_KEY, MAIL_USERNAME, MAIL_PASSWORD```
+2) Create **sessions** folder in **static**, and don't forget to change permissions to **static** folder to 777
+3) Run: **python app.py**
+4) Start redis: 
+```brew services start redis (i.e. on Mac OS)```
+5) Start celery worker: ```celery -A app.celery_app worker --loglevel INFO```
+6) Start celery beat: ```celery -A app.celery_app beat --loglevel INFO```
 7) Configure settings for your email server
