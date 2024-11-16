@@ -232,6 +232,19 @@ def data_processing(data):
     with open(os.path.join(data['parameters']['new_dir'], 'sequences.json'), 'w') as f:
         json.dump(output_data, f, default=str)
 
+    # save DataFrames with occurrences in CSV files for each service sequence
+    # Initialize the merged dataframe with the 'index' column from the first dataframe
+    merged_df = output_data['sequences'][0]['occurences'][['index']].copy()
+
+    # Merge each dataframe into the merged_df
+    for name, df in {i['type']:i['occurences'] for i in output_data['sequences']}.items():
+        merged_df = merged_df.merge(
+            df.rename(columns={'reads': f'{name}_reads', 'proportion': f'{name}_proportion', 'consensus': f'{name}_consensus'}),
+            on='index',
+            how='outer'
+        )
+    merged_df.to_csv(os.path.join(data['parameters']['new_dir'], 'occurrences.csv'))
+
     fig1 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'], mode='proportion')
     fig2 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'], mode='reads')
 
