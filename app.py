@@ -200,15 +200,18 @@ def sessions():
 def experiment(sessionID):
     base_directory = app.config['UPLOAD_FOLDER']
     # app.config['UPLOAD_FOLDER']
-    directory_path = os.path.join(base_directory, sessionID)
-    parameters, sequences = read_config(directory_path)
-    parameters['filename'] = os.path.basename(parameters['input_file'])
-    parameters['new_dir'] = directory_path
-    data = {'sequences': sequences,
-            'parameters': parameters,
-            'session_name': sessionID}
-    session['input_data'] = data
-    return redirect(url_for('results'))
+    try:
+        directory_path = os.path.join(base_directory, sessionID)
+        parameters, sequences = read_config(directory_path)
+        parameters['filename'] = os.path.basename(parameters['input_file'])
+        parameters['new_dir'] = directory_path
+        data = {'sequences': sequences,
+                'parameters': parameters,
+                'session_name': sessionID}
+        session['input_data'] = data
+        return redirect(url_for('results'))
+    except Exception as e:
+        return redirect(url_for('no_results'))
 
 @app.route('/delete/<sessionID>')
 def delete(sessionID):
@@ -259,7 +262,12 @@ def data_processing(data):
         return {'session_id': Path(data['parameters']['new_dir']).name,
                 'email': data['parameters']['email']}
     except Exception as e:
-        return None
+        return {'session_id': Path(data['parameters']['new_dir']).name,
+                'email': data['parameters']['email']}
+
+@app.route('/no_results')
+def no_results():
+    return render_template('no_results.html')
 
 @app.route('/results')
 def results():
@@ -295,14 +303,11 @@ def results():
                                        fastq_parameters=fastq_parameters,
                                        page='results')
         else:
-            try:
-                result = data_processing.delay(data)
-                return render_template('async_result.html',
-                                   result_id=result.id,
-                                   parameters = data['parameters'],
-                                   page='results')
-            except Exception as e:
-                render_template('no_results.html', page='results')
+            result = data_processing.delay(data)
+            return render_template('async_result.html',
+                               result_id=result.id,
+                               parameters = data['parameters'],
+                               page='results')
     else:
         return render_template('no_results.html', page='results')
 
