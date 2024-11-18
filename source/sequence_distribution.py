@@ -72,7 +72,7 @@ def get_all_occurrences(reference, type, all_sequences, n_records, avg_length, t
         result = all_indexes.to_frame('index').merge(df, on='index', how='left').fillna(0)
         return result
     else:
-        return []
+        return None
 
 
 def moving_average(arr, window_size):
@@ -211,14 +211,16 @@ def main(SESSION):
     avg_length = int(np.mean([len(s) for s in sequences]))
 
     for p in SEQUENCES:
-        p['occurences'] = get_all_occurrences(p['sequence'], p['type'], sequences, n_records, avg_length, THRESHOLD)
-        if len(p['occurences']) > 0:
-            #p['noise_level'] = calculate_snr(p['occurences']['reads'], round(len(p['sequence'])/2))
-            p['noise_level'] = float(np.round(signaltonoise(p['occurences']['reads']),4))
-            # p['noise_level'] = noise_level(p['occurences'], p['sequence'])
-            p['total_reads'] = int(np.sum(p['occurences']['reads']))
-            p['total_proportion'] = float(np.round(np.sum(p['occurences']['proportion']),4))
-            get_peak_occurrences(p, smoothing=SMOOTHING)
+        occurrences = get_all_occurrences(p['sequence'], p['type'], sequences, n_records, avg_length, THRESHOLD)
+        if occurrences is not None:
+            if len(occurrences) > 0:
+                p['occurences'] = occurrences
+                #p['noise_level'] = calculate_snr(p['occurences']['reads'], round(len(p['sequence'])/2))
+                p['noise_level'] = float(np.round(signaltonoise(p['occurences']['reads']),4))
+                # p['noise_level'] = noise_level(p['occurences'], p['sequence'])
+                p['total_reads'] = int(np.sum(p['occurences']['reads']))
+                p['total_proportion'] = float(np.round(np.sum(p['occurences']['proportion']),4))
+                get_peak_occurrences(p, smoothing=SMOOTHING)
 
     result_data['sequences'] = SEQUENCES
     result_data['parameters'] = {'n_records': n_records,

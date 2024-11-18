@@ -146,8 +146,9 @@ def index():
     if form.validate_on_submit():
         sequences = []
         for field in form.items.data:
+            seq_value = field['sequence'].replace("\n", "").replace(" ", "")
             sequences.append({'type': field['type'],
-                              'sequence': field['sequence']})
+                              'sequence': seq_value})
         limit = form.limit.data
         threshold = form.threshold.data
         smoothing = dict(form.smoothing.choices).get(form.smoothing.data)
@@ -234,28 +235,31 @@ def data_processing(data):
 
     # save DataFrames with occurrences in CSV files for each service sequence
     # Initialize the merged dataframe with the 'index' column from the first dataframe
-    merged_df = output_data['sequences'][0]['occurences'][['index']].copy()
+    try:
+        merged_df = output_data['sequences'][0]['occurences'][['index']].copy()
 
-    # Merge each dataframe into the merged_df
-    for name, df in {i['type']:i['occurences'] for i in output_data['sequences']}.items():
-        merged_df = merged_df.merge(
-            df.rename(columns={'reads': f'{name}_reads', 'proportion': f'{name}_proportion', 'consensus': f'{name}_consensus'}),
-            on='index',
-            how='outer'
-        )
-    merged_df.to_csv(os.path.join(data['parameters']['new_dir'], 'occurrences.csv'))
+        # Merge each dataframe into the merged_df
+        for name, df in {i['type']:i['occurences'] for i in output_data['sequences']}.items():
+            merged_df = merged_df.merge(
+                df.rename(columns={'reads': f'{name}_reads', 'proportion': f'{name}_proportion', 'consensus': f'{name}_consensus'}),
+                on='index',
+                how='outer'
+            )
+        merged_df.to_csv(os.path.join(data['parameters']['new_dir'], 'occurrences.csv'))
 
-    fig1 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'], mode='proportion')
-    fig2 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'], mode='reads')
+        fig1 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'], mode='proportion')
+        fig2 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'], mode='reads')
 
-    with open(os.path.join(data['parameters']['new_dir'], 'distribution_proportional.png'), "wb") as f1:
-        fig1.write_image(f1)
-    with open(os.path.join(data['parameters']['new_dir'], 'distribution_absolute.png'),
-              "wb") as f2:
-        fig2.write_image(f2)
+        with open(os.path.join(data['parameters']['new_dir'], 'distribution_proportional.png'), "wb") as f1:
+            fig1.write_image(f1)
+        with open(os.path.join(data['parameters']['new_dir'], 'distribution_absolute.png'),
+                  "wb") as f2:
+            fig2.write_image(f2)
 
-    return {'session_id': Path(data['parameters']['new_dir']).name,
-            'email': data['parameters']['email']}
+        return {'session_id': Path(data['parameters']['new_dir']).name,
+                'email': data['parameters']['email']}
+    except Exception as e:
+        return None
 
 @app.route('/results')
 def results():
@@ -291,11 +295,14 @@ def results():
                                        fastq_parameters=fastq_parameters,
                                        page='results')
         else:
-            result = data_processing.delay(data)
-            return render_template('async_result.html',
+            try:
+                result = data_processing.delay(data)
+                return render_template('async_result.html',
                                    result_id=result.id,
                                    parameters = data['parameters'],
                                    page='results')
+            except Exception as e:
+                render_template('no_results.html', page='results')
     else:
         return render_template('no_results.html', page='results')
 
