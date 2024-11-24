@@ -73,6 +73,8 @@ class InputForm(FlaskForm):
     session_name = StringField('Session Name', validators=[DataRequired()])
     items = FieldList(FormField(SequenceItem), min_entries=1, max_entries=10)
     limit = IntegerField('Limit', default=0)
+    fuzzy_similarity = SelectField('Sequence Similarity Algorithm',
+                                    choices=[('lev', 'Levenshtein'), ('blast', 'BLASTn')], default='lev')
     threshold = FloatField('Threshold', validators=[DataRequired(), NumberRange(min=0.1, max=1.0)], default=0.9)
     smoothing = SelectField('Smoothing',
                 choices=[('None','None'),('LOWESS','lowess'),('Whittaker Smoother', 'whittaker'),('savgol','savgol'),('confsmooth','confsmooth')])
@@ -132,7 +134,8 @@ def gerenate_config(sequences,
                     parameters):
     config = configparser.ConfigParser()
     config['Sequences'] = {item['type']:item['sequence'] for item in sequences}
-    config['Parameters'] = {'limit': parameters['limit'],
+    config['Parameters'] = {'fuzzy_similairty': parameters['fuzzy_similarity'],
+                            'limit': parameters['limit'],
                             'threshold': parameters['threshold'],
                             'input_file': os.path.join(parameters['new_dir'], parameters['filename']),
                             'smoothing': parameters['smoothing']
@@ -150,6 +153,7 @@ def index():
             sequences.append({'type': field['type'],
                               'sequence': seq_value})
         limit = form.limit.data
+        fuzzy_similarity = dict(form.fuzzy_similarity.choices).get(form.fuzzy_similarity.data)
         threshold = form.threshold.data
         smoothing = dict(form.smoothing.choices).get(form.smoothing.data)
         email = form.email.data
@@ -165,7 +169,8 @@ def index():
         # save fastq file to the local server
         file.save(os.path.join(new_dir, filename))
         session['session'] = form.session_name.data
-        parameters = {'limit': limit,
+        parameters = {'fuzzy_similarity': fuzzy_similarity,
+                    'limit': limit,
                      'threshold': threshold,
                      'filename': filename,
                      'new_dir': new_dir,

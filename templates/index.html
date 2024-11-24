@@ -56,6 +56,12 @@
   </li>
   <li class="list-group-item">
       <div class="form-group">
+                <label for="fuzzy_similarity">Fuzzy Similarity Matcher</label>
+                {{ form.fuzzy_similarity(class="form-control") }}
+            </div>
+  </li>
+  <li class="list-group-item">
+      <div class="form-group">
                 <label for="threshold">Threshold</label>
                 {{ form.threshold(size=10, class="form-control", data_bs_toggle="tooltip", data_bs_placement="top", title="Enter a threshold for the string similarity level [0,1]") }}
                 {% if form.threshold.errors %}
@@ -70,7 +76,7 @@
   <li class="list-group-item">
       <div class="form-group">
                 <label for="smoothing">Smoothing</label>
-                {{ form.smoothing(class="form-control-file") }}
+                {{ form.smoothing(class="form-control") }}
             </div>
   </li>
   <li class="list-group-item">
