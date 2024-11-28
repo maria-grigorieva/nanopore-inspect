@@ -5,11 +5,11 @@ import numpy as np
 from tqdm import tqdm
 import configparser
 import os
-from scipy.stats import variation
-from LevenshteinAligner import LevenshteinBio
-from BlastnAligner import BlastnBio
-from DataSmoother import DataSmoother
-from PeakAnalyzer import PeakAnalyzer
+from .BioSequenceAligner import BioSequenceAligner
+from .LevenshteinAligner import LevenshteinBio
+from .BlastnAligner import BlastnBio
+from .DataSmoother import DataSmoother
+from .PeakAnalyzer import PeakAnalyzer
 
 
 @dataclass
@@ -64,7 +64,7 @@ class SequenceAnalyzer:
             threshold=float(config['Parameters']['threshold']),
             limit=int(config['Parameters']['limit']),
             smoothing_type=config['Parameters']['smoothing'],
-            similarity_search=config['Parameters']['similarity_search']
+            similarity_search=config['Parameters']['fuzzy_similarity']
         )
 
     def _initialize_sequences(self) -> List[SequenceData]:
@@ -108,7 +108,7 @@ class SequenceAnalyzer:
 
     def _get_alignments(self, sequence: SequenceData) -> Dict[str, Any]:
         """Get sequence alignments based on similarity search method"""
-        if self.parameters.similarity_search == 'lev':
+        if self.parameters.similarity_search == 'Levenshtein':
             aligner = LevenshteinBio(
                 self.parameters.file_path,
                 sequence.sequence,
@@ -147,18 +147,34 @@ class SequenceAnalyzer:
 
     def _prepare_result_data(self) -> Dict[str, Any]:
         """Prepare final result data"""
+        formatted_sequences = [
+            {
+                "type": seq.type,
+                "sequence": seq.sequence,
+                "occurrences": seq.occurrences,
+                "noise_level": seq.noise_level,
+                "total_reads": seq.total_reads,
+                "total_proportion": seq.total_proportion,
+                "peaks": seq.peaks,
+                "average_peaks_distance": seq.average_peaks_distance,
+                "value_counts": seq.value_counts
+            }
+            for seq in self.sequences
+        ]
         return {
-            'sequences': self.sequences,
+            'sequences': formatted_sequences,
             'parameters': {
                 'n_records': self.n_records,
-                'similarity_search': self.parameters.similarity_search,
+                'fuzzy_similarity': self.parameters.similarity_search,
                 'smoothing': self.parameters.smoothing_type,
                 'limit': self.parameters.limit,
                 'threshold': self.parameters.threshold,
                 'file_path': self.parameters.file_path,
-                'avg_noise_level': np.round(
-                    np.mean([seq.noise_level for seq in self.sequences if seq.noise_level]),
+                'avg_noise_level': float(
+                    np.round(
+                        np.mean([seq.noise_level for seq in self.sequences if seq.noise_level]),
                     4
+                    )
                 )
             }
         }

@@ -1,4 +1,4 @@
-from BioSequenceAligner import BioSequenceAligner
+from BenchmarkSequenceAligner import BenchmarkSequenceAligner
 from Bio.Blast import NCBIXML
 from Bio import SeqIO
 import os
@@ -9,7 +9,7 @@ import time
 import subprocess
 import pandas as pd
 
-class BlastnBio(BioSequenceAligner):
+class BlastnBio(BenchmarkSequenceAligner):
 
     def __init__(self, db_file, query_string, similarity_score=0.9):
         super().__init__(db_file, query_string, similarity_score)
@@ -157,16 +157,49 @@ query_pattern = "GAGTCTTGTGTCCCAGTTACCAGG"
 # Get a list of files starting with 'ANG916_pass'
 files = [f for f in os.listdir(directory) if f.startswith(file_pattern)]
 # Limit to first 10 files
-files_to_read = files[:1]
+# files_to_read = files[:1]
+# results = []
+# # Read and process the files
+# for file in files_to_read:
+#     file_path = os.path.join(directory, file)
+#     blastnbio = BlastnBio(file_path, query_pattern, similarity_score=0.9)
+#     blastnbio.calculate_alignments()
+#     exact_matches = blastnbio.find_exact_matches()
+#     fuzzy_matches = blastnbio.fuzzy_matches
+#     results.append({"filename": file,
+#                     "query_length": len(blastnbio.query_string),
+#                     "similarity_score": blastnbio.similarity_score,
+#                     "db_length": blastnbio.get_db_length(),
+#                     "exact_matches": exact_matches,
+#                     "fuzzy_matches": fuzzy_matches,
+#                     "occurrences": blastnbio.occurrences,
+#                     "duration": blastnbio.duration,
+#                     "output_fasta_raw": blastnbio.output_fasta_raw,
+#                     "output_fasta_blast": blastnbio.output_fasta_blast,
+#                     "output_xml": blastnbio.blast_output_xml})
+#
+# pd.DataFrame(results).to_csv(f"{file_pattern}_results.csv")
+
+# read files in batches
+batch_size = 5
 results = []
-# Read and process the files
-for file in files_to_read:
-    file_path = os.path.join(directory, file)
-    blastnbio = BlastnBio(file_path, query_pattern, similarity_score=0.9)
+for i in range(0, len(files), batch_size):
+    batch_files = files[i:i + batch_size]
+
+    # Create a temporary file to concatenate the batch of FASTQ files
+    with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_file:
+        for file_path in batch_files:
+            with open(os.path.join(directory, file_path), 'r') as file:
+                temp_file.write(file.read())
+
+    # Process the concatenated temporary file
+    temp_file_path = temp_file.name
+    print(f"Processing temporary file: {temp_file_path}")
+    blastnbio = BlastnBio(temp_file_path, query_pattern, similarity_score=0.9)
     blastnbio.calculate_alignments()
     exact_matches = blastnbio.find_exact_matches()
     fuzzy_matches = blastnbio.fuzzy_matches
-    results.append({"filename": file,
+    results.append({"filename": temp_file_path,
                     "query_length": len(blastnbio.query_string),
                     "similarity_score": blastnbio.similarity_score,
                     "db_length": blastnbio.get_db_length(),
@@ -178,4 +211,4 @@ for file in files_to_read:
                     "output_fasta_blast": blastnbio.output_fasta_blast,
                     "output_xml": blastnbio.blast_output_xml})
 
-pd.DataFrame(results).to_csv(f"{file_pattern}_results.csv")
+pd.DataFrame(results).to_csv(f"{file_pattern}_blast_results.csv")

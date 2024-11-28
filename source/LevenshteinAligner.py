@@ -1,4 +1,4 @@
-from BioSequenceAligner import BioSequenceAligner
+from .BioSequenceAligner import BioSequenceAligner
 import os
 import time
 from rapidfuzz import fuzz

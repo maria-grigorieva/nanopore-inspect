@@ -1,4 +1,4 @@
-from BioSequenceAligner import BioSequenceAligner
+from .BioSequenceAligner import BioSequenceAligner
 from Bio.Blast import NCBIXML
 from Bio import SeqIO
 import os

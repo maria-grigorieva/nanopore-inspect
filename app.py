@@ -9,6 +9,7 @@ from wtforms import StringField, FloatField, SubmitField, FieldList, FormField, 
 import re
 import configparser
 from source import sequence_distribution, visualization
+from source.SequenceAnalyzer import SequenceAnalyzer
 import json
 import plotly
 import shutil
@@ -134,7 +135,7 @@ def gerenate_config(sequences,
                     parameters):
     config = configparser.ConfigParser()
     config['Sequences'] = {item['type']:item['sequence'] for item in sequences}
-    config['Parameters'] = {'fuzzy_similairty': parameters['fuzzy_similarity'],
+    config['Parameters'] = {'fuzzy_similarity': parameters['fuzzy_similarity'],
                             'limit': parameters['limit'],
                             'threshold': parameters['threshold'],
                             'input_file': os.path.join(parameters['new_dir'], parameters['filename']),
@@ -237,7 +238,10 @@ def generate_session_id():
 
 @shared_task(ignore_result=False)
 def data_processing(data):
-    output_data = sequence_distribution.main(data['parameters']['new_dir'])
+    analyzer = SequenceAnalyzer(data['parameters']['new_dir'])  # Initialize the class with necessary parameters
+    output_data = analyzer.analyze()  # Call the appropriate method
+
+    #output_data = sequence_distribution.main(data['parameters']['new_dir'])
     with open(os.path.join(data['parameters']['new_dir'], 'sequences.json'), 'w') as f:
         json.dump(output_data, f, default=str)
 

@@ -1,18 +1,21 @@
-from BioSequenceAligner import BioSequenceAligner
+from BenchmarkSequenceAligner import BenchmarkSequenceAligner
 import os
 import time
 from rapidfuzz import fuzz
 from scipy.signal import find_peaks
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import tempfile
 
-class LevenshteinBio(BioSequenceAligner):
+
+class LevenshteinBio(BenchmarkSequenceAligner):
     def __init__(self, db_file, query_string, similarity_score=0.9):
         super().__init__(db_file, query_string, similarity_score)
         self.output_fasta = f"{self.db_name}_LEVENSHTEIN.fasta"
         self.similarity_threshold = similarity_score * 100
         self.peak_distance = len(query_string)
-        self.peak_prominence = 10
+        # self.peak_prominence = 10
         # Store line indices along with positions and scores
         self.line_matches = []  # Will store tuples of (line_idx, positions, scores)
         self.matches_df = None
@@ -50,7 +53,7 @@ class LevenshteinBio(BioSequenceAligner):
 
         return line_idx, np.array([]), np.array([])
 
-    def calculate_alignments(self):
+    def calculate_alignments(self, save=True):
         """
         Process all sequences and find match positions using peak detection.
         """
@@ -79,14 +82,15 @@ class LevenshteinBio(BioSequenceAligner):
                     })
 
                 self.fuzzy_matches += len(positions)
-                self.occurrences.extend(positions)
+                self.occurrences.extend(positions.tolist())
 
         self.duration = time.time() - start_time
 
         # Convert matches to DataFrame for easy analysis
         self.matches_df = pd.DataFrame(matches_data)
 
-        self.parse_results()
+        if save:
+            self.parse_results()
 
         # Print summary
         print(f"Analysis completed in {self.duration:.2f} seconds")
@@ -132,56 +136,69 @@ class LevenshteinBio(BioSequenceAligner):
                 return positions, scores
         return np.array([]), np.array([])
 
-    def plot_line_positions(self, line_idx):
+    def plot_sequence_matches(self, sequence_idx):
         """
-        Plot positions of matches in a specific line.
+        Plot similarity scores and detected peaks for a specific sequence.
         """
-        import matplotlib.pyplot as plt
 
-        positions, scores = self.get_line_matches(line_idx)
+        # Find the matches for this sequence from line_matches
+        sequence_match = None
+        for line_idx, positions, scores in self.line_matches:
+            if line_idx == sequence_idx:
+                sequence_match = (positions, scores)
+                break
 
-        if len(positions) == 0:
-            print(f"No matches found in line {line_idx}")
-            return
+        sequence = self.sequences[sequence_idx]
 
-        sequence = self.sequences[line_idx]
+        # Calculate similarity scores for all positions
+        similarity_scores = []
+        for i in range(len(sequence) - self.query_string_length + 1):
+            substring = sequence[i:i + self.query_string_length]
+            score = fuzz.ratio(self.query_string, substring)
+            similarity_scores.append(score)
 
-        # Create a binary array showing match positions
-        match_indicator = np.zeros(len(sequence))
-        for pos in positions:
-            match_indicator[pos:pos + self.query_string_length] = 1
+        plt.style.use('seaborn-v0_8-paper')
+        plt.figure(figsize=(10, 5))
+        plt.plot(similarity_scores, label='Similarity Scores', alpha=0.6)
 
-        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 6), height_ratios=[1, 1])
+        # Plot detected peaks if matches were found
+        if sequence_match is not None:
+            positions, scores = sequence_match
+            plt.scatter(positions, scores, color='red', marker='x', s=100,
+                        label='Detected Peaks')
 
-        # Plot match positions
-        ax1.plot(match_indicator, drawstyle='steps-post')
-        ax1.set_title(f'Match Positions in Line {line_idx}')
-        ax1.set_xlabel('Position')
-        ax1.set_ylabel('Match Present')
-        ax1.grid(True, alpha=0.3)
+            # Add position annotations to peaks
+            for pos, score in zip(positions, scores):
+                plt.annotate(f'pos:{pos}\nscore:{score:.1f}',
+                             xy=(pos, score),
+                             xytext=(0, 10),
+                             textcoords='offset points',
+                             ha='center',
+                             va='bottom')
 
-        # Plot scores
-        ax2.bar(positions, scores, alpha=0.6)
-        ax2.set_title('Similarity Scores at Match Positions')
-        ax2.set_xlabel('Position')
-        ax2.set_ylabel('Score')
-        ax2.grid(True, alpha=0.3)
+        plt.axhline(y=self.similarity_threshold, color='green', linestyle='--',
+                    label=f'Threshold ({self.similarity_threshold}%)')
 
-        # Add position annotations
-        for pos, score in zip(positions, scores):
-            ax1.annotate(f'{pos}',
-                         xy=(pos, 1.1),
-                         xytext=(pos, 1.1),
-                         ha='center',
-                         rotation=45)
-            ax2.annotate(f'{score:.1f}',
-                         xy=(pos, score),
-                         xytext=(pos, score + 2),
-                         ha='center')
+        # plt.title(f'Sequence {sequence_idx} Matches')
+        plt.xlabel('Position', fontsize=16)
+        plt.ylabel('Similarity Score (%)', fontsize=16)
+        # Set ticks for better readability
+        plt.xticks(fontsize=12)
+        plt.yticks(fontsize=12)
+        plt.legend(fontsize=14)
+        plt.grid(True, alpha=0.3)
 
-        ax1.set_ylim(-0.1, 1.5)
+        # Set y-axis limits to show full range of scores
+        plt.ylim(0, 105)
+
+        plt.grid(True, which='both', linestyle='--', linewidth=0.5, alpha=0.7)
+
+        # Tight layout for better spacing
         plt.tight_layout()
+        plt.savefig('academic_plot.png', dpi=300)
+
         plt.show()
+
 
     def get_matches_summary(self):
         """
@@ -217,7 +234,7 @@ query_pattern = "GAGTCTTGTGTCCCAGTTACCAGG"
 
 # Get a list of files starting with 'ANG916_pass'
 files = [f for f in os.listdir(directory) if f.startswith(file_pattern)]
-# Limit to first 10 files
+
 files_to_read = files[:1]
 results = []
 # Read and process the files
@@ -231,7 +248,7 @@ for file in files_to_read:
     print("Matches summary:", summary)
 
     # Plot matches for a specific line
-    levenshtein_aligner.plot_line_positions(0)  # Plot first line
+    levenshtein_aligner.plot_sequence_matches(250)
 
     # Get matches for a specific line
     positions, scores = levenshtein_aligner.get_line_matches(0)
@@ -243,16 +260,65 @@ for file in files_to_read:
     print("\nAll matches:")
     print(levenshtein_aligner.matches_df)
 
-#     results.append({"filename": file,
-#                     "query_length": len(blastnbio.query_string),
-#                     "similarity_score": blastnbio.similarity_score,
-#                     "db_length": blastnbio.get_db_length(),
+    exact_matches = levenshtein_aligner.find_exact_matches()
+    fuzzy_matches = levenshtein_aligner.fuzzy_matches
+
+    results.append({"filename": file,
+                    "query_length": len(levenshtein_aligner.query_string),
+                    "similarity_score": levenshtein_aligner.similarity_score,
+                    "db_length": levenshtein_aligner.get_db_length(),
+                    "exact_matches": exact_matches,
+                    "fuzzy_matches": fuzzy_matches,
+                    "occurrences": levenshtein_aligner.occurrences,
+                    "duration": levenshtein_aligner.duration})
+
+pd.DataFrame(results).to_csv(f"{file_pattern}_levenshtein_results.csv")
+
+
+# read files in batches
+# batch_size = 5
+# results = []
+# for i in range(0, len(files), batch_size):
+#     batch_files = files[i:i + batch_size]
+#
+#     # Create a temporary file to concatenate the batch of FASTQ files
+#     with tempfile.NamedTemporaryFile(mode='w', delete=False) as temp_file:
+#         for file_path in batch_files:
+#             with open(os.path.join(directory, file_path), 'r') as file:
+#                 temp_file.write(file.read())
+#
+#     # Process the concatenated temporary file
+#     temp_file_path = temp_file.name
+#     print(f"Processing temporary file: {temp_file_path}")
+#     levenshtein_aligner = LevenshteinBio(temp_file_path, query_pattern, 0.9)
+#     levenshtein_aligner.calculate_alignments()
+#
+#     summary = levenshtein_aligner.get_matches_summary()
+#     print("Matches summary:", summary)
+#
+#     # Plot matches for a specific line
+#     # levenshtein_aligner.plot_sequence_matches(1)
+#
+#     # Get matches for a specific line
+#     positions, scores = levenshtein_aligner.get_line_matches(0)
+#     print(f"Line 0 matches:")
+#     print(f"Positions: {positions}")
+#     print(f"Scores: {scores}")
+#
+#     # Access all matches through DataFrame
+#     print("\nAll matches:")
+#     print(levenshtein_aligner.matches_df)
+#
+#     exact_matches = levenshtein_aligner.find_exact_matches()
+#     fuzzy_matches = levenshtein_aligner.fuzzy_matches
+#
+#     results.append({"filename": temp_file_path,
+#                     "query_length": len(levenshtein_aligner.query_string),
+#                     "similarity_score": levenshtein_aligner.similarity_score,
+#                     "db_length": levenshtein_aligner.get_db_length(),
 #                     "exact_matches": exact_matches,
 #                     "fuzzy_matches": fuzzy_matches,
-#                     "occurrences": blastnbio.occurrences,
-#                     "duration": blastnbio.duration,
-#                     "output_fasta_raw": blastnbio.output_fasta_raw,
-#                     "output_fasta_blast": blastnbio.output_fasta_blast,
-#                     "output_xml": blastnbio.blast_output_xml})
+#                     "occurrences": levenshtein_aligner.occurrences,
+#                     "duration": levenshtein_aligner.duration})
 #
-# pd.DataFrame(results).to_csv(f"{file_pattern}_results.csv")
+# pd.DataFrame(results).to_csv(f"{file_pattern}_levenshtein_results.csv")
