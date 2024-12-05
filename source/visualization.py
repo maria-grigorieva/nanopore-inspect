@@ -193,7 +193,7 @@ def plot_distribution(sequences, smoothing, mode='proportion'):
         ),
 
         # Hover behavior
-        hovermode='x unified'
+        # hovermode='x unified'
     )
 
     # Add custom hover template
