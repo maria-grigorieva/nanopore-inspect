@@ -52,7 +52,7 @@ class SequenceAnalyzer:
 
         # Initialize analysis components
         self.smoother = DataSmoother()
-        self.peak_analyzer = PeakAnalyzer()
+        self.peak_analyzer = PeakAnalyzer(window_size=20)
 
     def _load_parameters(self) -> AnalysisParameters:
         """Load and parse configuration parameters"""
@@ -136,6 +136,7 @@ class SequenceAnalyzer:
 
         peaks, distance = self.peak_analyzer.analyze_peaks(
             sequence.type,
+            sequence.sequence,
             sequence.occurrences['smoothed'].values,
             sequence.occurrences['reads'].values,
             sequence.occurrences['proportion'].values,

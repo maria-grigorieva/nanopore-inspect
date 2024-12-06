@@ -1,51 +1,105 @@
 from scipy.signal import find_peaks, peak_prominences, peak_widths
 import numpy as np
+
+
 class PeakAnalyzer:
     """Class for handling peak detection and analysis operations"""
 
-    def __init__(self):
-        pass
+    def __init__(self, window_size=20):
+        self.window_size = window_size
+
+    def find_peak_boundaries(self, smoothed_array, peak_indices):
+        """
+        Find more accurate peak boundaries by analyzing the slope changes
+        around each peak.
+        """
+        peak_info = []
+
+        for peak_idx in peak_indices:
+            # Define initial search ranges
+            left_limit = max(0, peak_idx - self.window_size)
+            right_limit = min(len(smoothed_array), peak_idx + self.window_size)
+
+            # Find left base by looking for slope change
+            left_segment = smoothed_array[left_limit:peak_idx]
+            left_base = left_limit
+            if len(left_segment) > 0:
+                slopes = np.diff(left_segment)
+                for i in range(len(slopes) - 1):
+                    if slopes[i] < slopes[i + 1]:
+                        left_base = left_limit + i
+                        break
+
+            # Find right base by looking for slope change
+            right_segment = smoothed_array[peak_idx:right_limit]
+            right_base = right_limit
+            if len(right_segment) > 0:
+                slopes = np.diff(right_segment)
+                for i in range(len(slopes) - 1):
+                    if slopes[i] < 0 and slopes[i + 1] > 0:
+                        right_base = peak_idx + i
+                        break
+
+            peak_info.append({
+                'peak_index': peak_idx,
+                'left_base': left_base,
+                'right_base': right_base
+            })
+
+        return peak_info
 
     def analyze_peaks(self, reference_type,
-                            smoothed_array,
-                            reads_array,
-                            proportion_array,
-                      consensus_array,
-                      ):
+                      reference_value,
+                      smoothed_array,
+                      reads_array,
+                      proportion_array,
+                      consensus_array):
         """Main method for peak analysis"""
         list_of_peaks = []
         peaks, initial_bases = find_peaks(smoothed_array)
         prominences = peak_prominences(smoothed_array, peaks)[0]
         avg_prominence = np.mean(prominences)
-        widths = peak_widths(smoothed_array, peaks, rel_height=1)[0]
-        peak_indices, bases = find_peaks(smoothed_array, prominence=avg_prominence)
+
+        # Find peaks with adjusted parameters
+        peak_indices, properties = find_peaks(smoothed_array,
+                                              prominence=avg_prominence,
+                                              distance=len(reference_value),
+                                              width=5,
+                                              rel_height=0.7)
 
         if len(peak_indices) == 0:
             peak_indices = peaks
-            bases = initial_bases
+            # Get peak boundaries for initial peaks
+            peak_info = self.find_peak_boundaries(smoothed_array, peaks)
+        else:
+            # Get peak boundaries for detected peaks
+            peak_info = self.find_peak_boundaries(smoothed_array, peak_indices)
 
-        if bases:
+        if peak_info:
             extremums = self._process_peaks(reads_array,
                                             proportion_array,
                                             consensus_array,
                                             peak_indices,
-                                            bases)
+                                            peak_info)
             list_of_peaks = extremums if len(extremums) > 0 else []
             average_peaks_distance = self.calculate_average_peaks_distance(list_of_peaks)
 
         return list_of_peaks, average_peaks_distance
 
     def _process_peaks(self, reads_array,
-                             proportion_array,
-                             consensus_array,
-                             peak_indices,
-                             bases):
+                       proportion_array,
+                       consensus_array,
+                       peak_indices,
+                       peak_info):
         """Process all peaks and calculate their properties"""
         extremums = []
-        for i in range(0, len(peak_indices)):
+        for i in range(len(peak_indices)):
             peak_index = peak_indices[i]
             extremums.append(self.aggregate_peak_values(i, reads_array,
-                             proportion_array, consensus_array, peak_index, bases))
+                                                        proportion_array,
+                                                        consensus_array,
+                                                        peak_index,
+                                                        peak_info))
 
         for i in range(1, len(extremums)):
             extremums[i]['peak_dist'] = extremums[i]['peak_index'] - extremums[i - 1]['peak_index']
@@ -54,10 +108,10 @@ class PeakAnalyzer:
 
     @staticmethod
     def aggregate_peak_values(step, reads_array,
-                             proportion_array, consensus_array, peak_index, bases):
+                              proportion_array, consensus_array, peak_index, peak_info):
         """Calculate aggregate values for a single peak"""
-        left_bases = bases['left_bases'][step] if 'left_bases' in bases else 0
-        right_bases = bases['right_bases'][step] if 'right_bases' in bases else 0
+        left_bases = peak_info[step]['left_base']
+        right_bases = peak_info[step]['right_base']
         total_proportion = np.round(np.sum(proportion_array[left_bases:right_bases]), 4)
         total_occurrences = np.round(np.sum(reads_array[left_bases:right_bases]), 4)
         consensus = consensus_array[int(peak_index)]
