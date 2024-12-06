@@ -4,7 +4,6 @@ from plotly.subplots import make_subplots
 import numpy as np
 import pandas as pd
 
-
 def plot_distribution(sequences, smoothing, mode='proportion'):
     # Define a modern color palette (colorblind-friendly)
     colors = [
@@ -205,87 +204,6 @@ def plot_distribution(sequences, smoothing, mode='proportion'):
 
     return fig
 
-# def plot_distribution(sequences, smoothing, mode='proportion'):
-#     fig = go.Figure()
-#     fig_title = ("Positional distribution of occurrences proportional to the total number "
-#                  "of sequences (Proportion) and Reads") if mode == 'proportion' else \
-#         ("Distribution of positional occurrences of sequences")
-#
-#     for p in sequences:
-#         title = p['type']
-#         if 'value_counts' in p:
-#             df = pd.DataFrame(p['value_counts'])
-#             total_proportion = p['total_proportion']
-#             total_reads = p['total_reads']
-#             noise = p['noise_level']
-#             fig_legend = (f'{title}: Total Proportion = {total_proportion}, '
-#                           f'number of reads = {total_reads}, level of noise = {noise}') if mode == 'proportion' else \
-#                 (f'{title}: Total Reads = {total_reads}, proportion = {total_proportion}, level of noise = {noise}')
-#
-#             fig.add_trace(go.Scatter(
-#                 x=df['index'],
-#                 y=df[mode],
-#                 mode='lines',
-#                 name=fig_legend,
-#                 yaxis='y1'  # Specify the first Y-axis
-#                 )
-#             )
-#
-#             if len(sequences) == 1:
-#                 # Add dots at specific x positions (for proportions)
-#                 peak_positions = [int(i['peak_index']) for i in p['peaks']]
-#                 fig.add_trace(go.Scatter(
-#                     x=peak_positions,
-#                     y=[df.loc[df['index'] == x, mode].values[0] for x in peak_positions],
-#                     text=[i[f'total_{mode}'] for i in p['peaks']],
-#                     textposition='top center',
-#                     textfont=dict(color='red'),
-#                     mode='markers+text',
-#                     marker=dict(size=8, color='red'),
-#                     showlegend=False
-#                 ))
-#
-#                 # Smoothing line
-#                 if smoothing != 'None':
-#                     x_smooth = df['index']
-#                     y_smooth = df['smoothed']
-#                     fig.add_trace(go.Scatter(
-#                         x=x_smooth,
-#                         y=y_smooth,
-#                         mode='lines',
-#                         showlegend=False,
-#                         line=dict(color='red')
-#                     ))
-#
-#     # Update layout with dual Y-axis (proportion on left, reads on right)
-#     fig.update_layout(
-#         width=1200,
-#         height=600,
-#         legend=dict(
-#             x=0,
-#             y=1.0,
-#             xanchor='left',
-#             yanchor='bottom'
-#         ),
-#         barmode='overlay',
-#         title={
-#             'text': fig_title,
-#             'y': 0.05,
-#             'x': 0.5,
-#             'xanchor': 'center',
-#             'yanchor': 'bottom'
-#         },
-#         # Define the primary Y-axis for Proportion
-#         yaxis=dict(
-#             title=mode,
-#             side="left",
-#             showgrid=True
-#         )
-#     )
-#     # Set opacity for the traces
-#     fig.update_traces(opacity=0.75)
-#
-#     return fig
 
 def make_peaks_subplots(sequences):
     specs = [[{"type": "table"}] for i in range(0, len(sequences))]
