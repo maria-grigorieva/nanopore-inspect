@@ -92,9 +92,11 @@
     </div>
 </div>
 <!-- Dropdown for chart selection -->
-        <div class="mb-3">
-            <label for="chartSelect" class="form-label">Choose Chart:</label>
-            <!-- Bootstrap select box -->
+<div class="container mt-3">
+    <div class="row">
+        <div class="col-sm-4 mb-3"></div>
+        <div class="col-sm-4 mb-3">
+            <label for="chartSelect" class="form-label">Choose Chart Type:</label>
             <select class="form-select" id="chartSelect" onchange="toggleCharts()">
                 <option value="chart1">Proportional Distribution</option>
                 <option value="chart2">Distribution in number of reads</option>
@@ -119,7 +121,8 @@
             }
         }
     </script>
-
+    </div>
+</div>
 <div id='stats_tables'>
     <div class="container">
         <div class="row">
