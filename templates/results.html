@@ -2,62 +2,61 @@
 
     {% block header %}
         {{ super() }}
+
         {% endblock %}
 
 {% block body%}
-<style>
-        /* Hide chart2 by default */
-        #chart2 {
-            display: none;
-        }
-    </style>
+
 	<h4 class="my-4 text-center">Sequence Occurrences</h4>
 <div class="container mt-5">
     <div class="row">
-      <div class="col-sm-4 mb-3 mb-sm-0">
-        <div class="card">
-          <div class="card-header">
-              <h4 class="card-title">Input Data</h4>
-          </div>
-          <div class="card-body ps-2 text-truncate">
-                      <table class="table table-hover table-sm small">
+        <div class="col">
+<!--      <div class="col-sm-4 mb-3 mb-sm-0">-->
+          <div class="input-data-card">
+    <div class="card-header">
+        <h4 class="card-title">
+            <i class="fas fa-database me-2"></i>Input Data
+        </h4>
+    </div>
+    <div class="card-body">
+        <table class="input-data-table">
             <tbody>
                 <tr>
-                    <th>Session Name</th>
+                    <th><i class="fas fa-tag me-2"></i>Session Name</th>
                     <td>{{ data['session_name'] }}</td>
                 </tr>
                 <tr>
-                    <th>Limit</th>
+                    <th><i class="fas fa-border-all me-2"></i>Limit</th>
                     <td>{{ data['parameters']['limit'] }}</td>
                 </tr>
                 <tr>
-                    <th>Threshold</th>
+                    <th><i class="fas fa-filter me-2"></i>Threshold</th>
                     <td>{{ data['parameters']['threshold'] }}</td>
                 </tr>
                 <tr>
-                    <th>Similarity Search Algorithm</th>
+                    <th><i class="fas fa-search me-2"></i>Similarity Algorithm</th>
                     <td>{{ data['parameters']['fuzzy_similarity'] }}</td>
                 </tr>
                 <tr>
-                    <th>Smoothing</th>
+                    <th><i class="fas fa-wave-square me-2"></i>Smoothing</th>
                     <td>{{ data['parameters']['smoothing'] }}</td>
                 </tr>
                 <tr>
-                    <th>Filename</th>
-                    <td>{{ data['parameters']['filename'] }}</td>
+                    <th><i class="fas fa-file me-2"></i>Filename</th>
+                    <td class="filename">{{ data['parameters']['filename'] }}</td>
                 </tr>
                 <tr>
-                    <th>Number of Sequences</th>
+                    <th><i class="fas fa-dna me-2"></i>Number of Sequences</th>
                     <td>{{ fastq_parameters['n_records'] }}</td>
                 </tr>
                 <tr>
-                    <th>Average Level of Noise</th>
+                    <th><i class="fas fa-chart-line me-2"></i>Average Noise Level</th>
                     <td>{{ fastq_parameters['avg_noise_level'] }}</td>
                 </tr>
             </tbody>
         </table>
-          </div>
-        </div>
+    </div>
+</div>
       </div>
       <div class="col">
         <div class="card">
@@ -65,7 +64,7 @@
                 <h4 class="card-title">Searched Sequences</h4>
             </div>
           <div class="card-body ps-2 text-truncate">
-              <table id="searched_sequences" class="table table-hover table-sm small">
+              <table id="searched_sequences" class="table table-hover table-sm small input-sequences-table">
                   <thead>
                     <tr>
                       <th>Type</th>
@@ -87,18 +86,11 @@
                     {% endfor %}
                   </tbody>
                 </table>
-
-{#            <ul class="list-group list-group-flush">#}
-{#              {% for s in sequences %}#}
-{#                        <li class="list-group-item"><strong>{{ s['type'] }}:</strong> {{ s['sequence'] }}, total occurrences = {{ s['total_reads'] }},#}
-{#                        proportion = {{ s['total_proportion'] }}, noise level = {{ s['noise_level'] }}</li>#}
-{#              {% endfor %}#}
-{#            </ul>#}
           </div>
         </div>
       </div>
     </div>
-    </div>
+</div>
 <!-- Dropdown for chart selection -->
         <div class="mb-3">
             <label for="chartSelect" class="form-label">Choose Chart:</label>
@@ -129,116 +121,67 @@
     </script>
 
 <div id='stats_tables'>
- <div class="container">
-     <div class="row">
+    <div class="container">
+        <div class="row">
              <div class="col-md-6" id="selection">
-        <h4 id="header_selection">Selection</h4>
-        <table border="1" id="table_selection" class="table table-hover table-sm small">
-            <thead>
-            <tr><th>Type</th><th>Reads</th><th>Proportion</th><th>Motif Consensus</th></tr>
-            </thead>
-            <tbody>
-            {% for seq in sequences %}
-                    <tr><td>{{ seq['type'] }}</td><td>0</td><td>0</td><td></td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-         <h4>Peaks Statistics</h4>
-     </div>
-       <div class="row">
-           <div class="col-md-10">
-               <table id="peaks_statistics" border="1" class="table table-hover table-sm small">
+                <h4 id="header_selection">Selection</h4>
+                <table border="1" id="table_selection" class="table table-hover table-sm small">
                     <thead>
-                        <tr>
-                            <th>Type</th>
-                            <th>Peak Index</th>
-                            <th>Left Bases</th>
-                            <th>Right Bases</th>
-                            <th>Total Proportion</th>
-                            <th>Total Reads</th>
-                            <th>Peak Distance</th>
-                            <th>Motif Consensus</th>
-                        </tr>
+                    <tr><th>Type</th><th>Reads</th><th>Proportion</th><th>Motif Consensus</th></tr>
                     </thead>
                     <tbody>
-                        {% for seq in sequences %}
-                            {% if seq['peaks'] %}
-                            {% for row in seq['peaks'] %}
-                                <tr>
-                                    <td><strong>{{ seq['type'] }}</strong></td>
-                                    <td>{{ row['peak_index'] }}</td>
-                                    <td>{{ row['left_bases'] }}</td>
-                                    <td>{{ row['right_bases'] }}</td>
-                                    <td>{{ row['total_proportion'] }}</td>
-                                    <td>{{ row['total_reads'] }}</td>
-                                    <td>{{ row['peak_dist'] }}</td>
-                                    <td class="consensus" reference="{{ seq['sequence'] }}">{{ row['motif_consensus'] }}</td>
-                {#                    {% if loop.first %}#}
-                {#                        <td rowspan="{{ loop.length }}">#}
-                {#                            <strong>{{ seq['type'] }}</strong>#}
-                {#                        </td>#}
-                {#                    {% endif %}#}
-                                </tr>
-                            {% endfor %}
-                            {% endif %}
-                        {% endfor %}
+                    {% for seq in sequences %}
+                            <tr><td>{{ seq['type'] }}</td><td>0</td><td>0</td><td></td></tr>
+                    {% endfor %}
                     </tbody>
                 </table>
-
-{#       <table id="peaks_statistics" class="table table-hover table-sm small">#}
-{#        <thead>#}
-{#            <tr>#}
-{#                <th>Type</th>#}
-{#                <th>Peak Index</th>#}
-{#                <th>Left Bases</th>#}
-{#                <th>Right Bases</th>#}
-{#                <th>Total Proportion</th>#}
-{#                <th>Total Reads</th>#}
-{#                <th>Peak Distance</th>#}
-{#            </tr>#}
-{#        </thead>#}
-{#        <tbody>#}
-{#            {% for seq in sequences %}#}
-{#                {% for row in seq['peaks'] %}#}
-{#                    <tr>#}
-{#                        {% if loop.first %}#}
-{#                            <td rowspan="{{ loop.length }}">#}
-{#                                <strong>{{ seq['type'] }}</strong>#}
-{#                            </td>#}
-{#                        {% endif %}#}
-{#                        <td>{{ row['peak_index'] }}</td>#}
-{#                        <td>{{ row['left_bases'] }}</td>#}
-{#                        <td>{{ row['right_bases'] }}</td>#}
-{#                        <td>{{ row['total_proportion'] }}</td>#}
-{#                        <td>{{ row['total_reads'] }}</td>#}
-{#                        <td>{{ row['peak_dist'] }}</td>#}
-{#                    </tr>#}
-{#                {% endfor %}#}
-{#            {% endfor %}#}
-{#        </tbody>#}
-{#    </table>#}
-           </div>
-{#            <div class="col-md-4" id="selection">#}
-{#                <h4 id="header_selection">Selection</h4>#}
-{#                <table border="1" id="table_selection" class="table table-hover table-sm small">#}
-{#                    <thead>#}
-{#                    <tr><th>Type</th><th>Reads</th><th>Proportion</th></tr>#}
-{#                    </thead>#}
-{#                    <tbody>#}
-{#                    {% for seq in sequences %}#}
-{#                            <tr><td>{{ seq['type'] }}</td><td>0</td><td>0</td></tr>#}
-{#                    {% endfor %}#}
-{#                    </tbody>#}
-{#                </table>#}
-{#            </div>#}
-       </div>
-
-   </div>
+            </div>
+        </div>
+<!--    <div class="container">-->
+        <h4 class="mb-4">Peaks Statistics</h4>
+        <div class="row">
+            <div class="col-md-12">
+                {% for seq in sequences %}
+                    {% if seq['peaks'] %}
+                        <div class="table-container mb-4">
+                            <h5 class="table-title">Sequence Type: {{ seq['type'] }}</h5>
+                            <table class="table table-hover table-bordered table-sm small peaks-table">
+                                <thead class="thead-light">
+                                    <tr>
+                                        <th>Peak Index</th>
+                                        <th>Left Bases</th>
+                                        <th>Right Bases</th>
+                                        <th>Total Proportion</th>
+                                        <th>Total Reads</th>
+                                        <th>Peak Distance</th>
+                                        <th>Motif Consensus</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in seq['peaks'] %}
+                                        <tr>
+                                            <td>{{ row['peak_index'] }}</td>
+                                            <td>{{ row['left_bases'] }}</td>
+                                            <td>{{ row['right_bases'] }}</td>
+                                            <td>{{ '{:.2f}%'.format(row['total_proportion'] * 100) }}</td>
+                                            <td>{{ '{:,}'.format(row['total_reads']) }}</td>
+                                            <td>{{ row['peak_dist'] }}</td>
+                                            <td class="consensus" reference="{{ seq['sequence'] }}">
+                                                {{ row['motif_consensus'] }}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+<!--    </div>-->
 </div>
 
-{#</div>#}
-        <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
+<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
         <script type='text/javascript'>
           var graph1 = {{plots['hist1'] | safe}};
           var graph2 = {{plots['hist2'] | safe}};
@@ -248,8 +191,8 @@
           Plotly.plot('chart1',graph1,{});
           Plotly.plot('chart2',graph2,{});
 
-          function setupRelayoutListener(graphDiv, sequences) {
-    graphDiv.on('plotly_relayout', function(eventdata) {
+    function setupRelayoutListener(graphDiv, sequences) {
+        graphDiv.on('plotly_relayout', function(eventdata) {
         let start_index = Math.round(eventdata['xaxis.range[0]']);
         let end_index = Math.round(eventdata['xaxis.range[1]']);
 
@@ -307,7 +250,7 @@
             $('#table_selection').columnHeatmap({
                 columns: [1, 2],
                 inverse: true,
-                colorStartPoint: 240
+                colors: ['#f7f7f7', '#7fc97f', '#253494']
             });
 
             // Highlight matching consensus sequences
@@ -334,57 +277,62 @@
     });
 }
 
-setupRelayoutListener(graphDiv1, sequences);
-setupRelayoutListener(graphDiv2, sequences);
+    setupRelayoutListener(graphDiv1, sequences);
+    setupRelayoutListener(graphDiv2, sequences);
 
-          $('#searched_sequences').columnHeatmap({
-              columns: [2,3],
-              inverse:true,
-              colorStartPoint: 240
-            });
-          $('#searched_sequences').columnHeatmap({
-              columns: [4],
-              inverse:false
-            });
+    $('#searched_sequences').columnHeatmap({
+        columns: [2, 3],
+        inverse: true,
+        colors: ['#f7f7f7', '#0570b0', '#d73027'] // Light gray to blue to red color scheme
+    });
 
-          $('#peaks_statistics').columnHeatmap({
-              columns: [4,5],
-              inverse:true,
-              colorStartPoint: 240
-            });
+    $('#searched_sequences').columnHeatmap({
+        columns: [4],
+        inverse: false,
+        colors: ['#d73027', '#f7f7f7', '#4575b4'] // Red to light gray to blue color scheme
+    });
 
-          $('#table_selection').columnHeatmap({
-              columns: [1,2],
-              inverse:true,
-              colorStartPoint: 240
-            });
+    $('.peaks-table').each(function() {
+        $(this).columnHeatmap({
+            columns: [3, 4],
+            inverse: true,
+            colors: ['#f7f7f7', '#7fc97f', '#253494'] // Light gray to green to dark blue color scheme
+        });
+    });
 
-          // Define the highlightMatchingChars function
-        function highlightMatchingChars(strA, strB) {
-            let result = "";
+    $('#table_selection').columnHeatmap({
+        columns: [1, 2],
+        inverse: true,
+        colors: ['#f7f7f7', '#7fc97f', '#253494'] // Light gray to green to dark blue color scheme
+        // colors: ['#f7f7f7', '#fdae61', '#d73027'] // Light gray to orange to red color scheme
+    });
 
-            for (let i = 0; i < strA.length; i++) {
-                if (strA[i] === strB[i]) {
-                    result += `<span style="color: green;">${strA[i]}</span>`;
-                } else {
-                    result += strA[i];
-                }
+      // Define the highlightMatchingChars function
+    function highlightMatchingChars(strA, strB) {
+        let result = "";
+
+        for (let i = 0; i < strA.length; i++) {
+            if (strA[i] === strB[i]) {
+                result += `<span style="color: green;">${strA[i]}</span>`;
+            } else {
+                result += strA[i];
             }
-
-            return result;
         }
 
-          // Apply the function to all <td> elements with class 'consensus'
-        $('.consensus').each(function() {
-            let originalText = $(this).text();
-            let comparedText =  $(this).attr('reference');
-            let highlightedText = highlightMatchingChars(originalText, comparedText);
-            $(this).html(highlightedText);
-        });
+        return result;
+    }
+
+      // Apply the function to all <td> elements with class 'consensus'
+    $('.consensus').each(function() {
+        let originalText = $(this).text();
+        let comparedText =  $(this).attr('reference');
+        let highlightedText = highlightMatchingChars(originalText, comparedText);
+        $(this).html(highlightedText);
+    });
 
 
 
-        </script>
+    </script>
 
-
+</div>
 {% endblock %}
