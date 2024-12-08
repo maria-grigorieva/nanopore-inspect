@@ -3,6 +3,8 @@ import logging
 import json
 import uuid
 from pathlib import Path
+import os
+import shutil
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -55,3 +57,11 @@ def load_output_data(file_path: Path) -> Dict:
 def ensure_directory_exists(directory: Path) -> None:
     """Ensure directory exists, create if it doesn't"""
     directory.mkdir(parents=True, exist_ok=True)
+
+def remove_session_dir(base_directory: str, session_id: str) -> None:
+    directory_path = os.path.join(base_directory, session_id)
+    try:
+        shutil.rmtree(directory_path)
+        logger.info(f"Directory '{directory_path}' and all its contents have been successfully removed.")
+    except Exception as e:
+        logger.error(f"An error occurred while removing '{directory_path}': {e}")

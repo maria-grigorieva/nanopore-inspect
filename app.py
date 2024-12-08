@@ -21,7 +21,7 @@ import pandas as pd
 import secrets
 from pathlib import Path
 from forms import InputForm
-from utils import save_csv, save_json, save_plot, load_output_data, ensure_directory_exists
+from utils import save_csv, save_json, save_plot, load_output_data, ensure_directory_exists, remove_session_dir
 # from factory import create_app
 from config import config
 
@@ -211,12 +211,7 @@ def experiment(sessionID):
 @app.route('/delete/<sessionID>')
 def delete(sessionID):
     base_directory = app.config['UPLOAD_FOLDER']
-    directory_path = os.path.join(base_directory, sessionID)
-    try:
-        shutil.rmtree(directory_path)
-        print(f"Directory '{directory_path}' and all its contents have been successfully removed.")
-    except Exception as e:
-        print(f"An error occurred while removing '{directory_path}': {e}")
+    remove_session_dir(base_directory, sessionID)
     session['input_data'] = None
     return redirect(url_for('sessions'))
 
@@ -410,23 +405,50 @@ def send_email_test():
     except Exception as e:
         return f"Failed to send email. Error: {str(e)}"
 
-@app.route("/result/<id>", methods=['GET','POST'])
-def task_result(id: str) -> dict[str, object]:
-    result = AsyncResult(id)
-    if result.ready():
-        session_id = result.result['session_id']
-        email = result.result['email']
-        path = request.url_root + 'experiment/' + session_id
-        send_email(email, session_id, path)
-        return redirect(url_for('experiment', sessionID=session_id))
-    else:
-        return render_template('in_progress.html', result_id = id, page='results')
+@app.route("/result/<id>", methods=['GET', 'POST'])
+def task_result(id: str) -> object:
+    """
+    Handle the result of an asynchronous task.
 
-    # return {
-    #     "ready": result.ready(),
-    #     "successful": result.successful(),
-    #     "value": result.result if result.ready() else None,
-    # }
+    Args:
+        id (str): Task ID.
+
+    Returns:
+        Response: Redirect to the experiment page if ready, or renders an 'in progress' template.
+    """
+    try:
+        # Get task result
+        result = AsyncResult(id)
+
+        if result.ready():
+            # Extract task results
+            task_data = result.result or {}
+            session_id = task_data.get('session_id')
+            email = task_data.get('email')
+
+            if not session_id or not email:
+                logging.error(f"Task {id} result is incomplete: {task_data}")
+                return jsonify({"error": "Task result is incomplete."}), 500
+
+            # Construct path and send email
+            experiment_path = request.url_root + 'experiment/' + session_id
+            try:
+                send_email(email, session_id, experiment_path)
+                logging.info(f"Email sent to {email} for session {session_id}.")
+            except Exception as e:
+                logging.error(f"Failed to send email for session {session_id}: {e}")
+                return jsonify({"error": "Failed to send email."}), 500
+
+            # Redirect to experiment page
+            return redirect(url_for('experiment', sessionID=session_id))
+        else:
+            # Task is still in progress
+            return render_template('in_progress.html', result_id=id, page='results')
+
+    except Exception as e:
+        logging.error(f"Error processing task {id}: {e}")
+        return jsonify({"error": "An error occurred while processing the task."}), 500
+
 
 # Error handlers
 @app.errorhandler(404)

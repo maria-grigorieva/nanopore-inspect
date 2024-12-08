@@ -184,6 +184,7 @@
 <!--    </div>-->
 </div>
 
+
 <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
         <script type='text/javascript'>
           var graph1 = {{plots['hist1'] | safe}};
@@ -335,7 +336,9 @@
 
 
 
-    </script>
+</script>
+<!--    <script src="{{ url_for('static', filename='js/script.js') }}"></script>-->
+
 
 </div>
 {% endblock %}
