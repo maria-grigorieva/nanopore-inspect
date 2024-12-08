@@ -20,6 +20,10 @@ import uuid
 from pathlib import Path
 from flask_mail import Mail, Message
 import os
+from concurrent.futures import ThreadPoolExecutor
+from typing import Dict, Any
+import logging
+import pandas as pd
 
 def celery_init_app(app: Flask) -> Celery:
     class FlaskTask(Task):
@@ -236,43 +240,172 @@ def generate_session_id():
     session_id = uuid.uuid4()
     return str(session_id)
 
-@shared_task(ignore_result=False)
-def data_processing(data):
-    analyzer = SequenceAnalyzer(data['parameters']['new_dir'])  # Initialize the class with necessary parameters
-    output_data = analyzer.analyze()  # Call the appropriate method
 
-    #output_data = sequence_distribution.main(data['parameters']['new_dir'])
-    with open(os.path.join(data['parameters']['new_dir'], 'sequences.json'), 'w') as f:
-        json.dump(output_data, f, default=str)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-    # save DataFrames with occurrences in CSV files for each service sequence
-    # Initialize the merged dataframe with the 'index' column from the first dataframe
+
+class DataProcessingError(Exception):
+    """Custom exception for data processing errors"""
+    pass
+
+
+def save_json(file_path: str, data: Dict[str, Any]) -> None:
+    """Save data to JSON file"""
     try:
-        merged_df = output_data['sequences'][0]['occurences'][['index']].copy()
+        with open(file_path, 'w') as f:
+            json.dump(data, f, default=str)
+    except Exception as e:
+        logger.error(f"Failed to save JSON file: {e}")
+        raise DataProcessingError(f"JSON save failed: {e}")
 
-        # Merge each dataframe into the merged_df
-        for name, df in {i['type']:i['occurences'] for i in output_data['sequences']}.items():
+
+def save_csv(file_path: str, df) -> None:
+    """Save DataFrame to CSV file"""
+    try:
+        df.to_csv(file_path)
+    except Exception as e:
+        logger.error(f"Failed to save CSV file: {e}")
+        raise DataProcessingError(f"CSV save failed: {e}")
+
+
+def save_plot(fig, file_path: str) -> None:
+    """Save plot to file"""
+    try:
+        with open(file_path, "wb") as f:
+            fig.write_image(f)
+    except Exception as e:
+        logger.error(f"Failed to save plot: {e}")
+        raise DataProcessingError(f"Plot save failed: {e}")
+
+
+def create_merged_dataframe(sequences: list) -> pd.DataFrame:
+    """Create merged DataFrame from sequences"""
+    try:
+        # Get first sequence's occurrences for initialization
+        merged_df = sequences[0]['occurrences'][['index']].copy()
+
+        # Dictionary comprehension for sequence mapping
+        sequence_dict = {seq['type']: seq['occurrences'] for seq in sequences}
+
+        # Merge all sequences
+        for name, df in sequence_dict.items():
+            column_mapping = {
+                'reads': f'{name}_reads',
+                'proportion': f'{name}_proportion',
+                'consensus': f'{name}_consensus'
+            }
             merged_df = merged_df.merge(
-                df.rename(columns={'reads': f'{name}_reads', 'proportion': f'{name}_proportion', 'consensus': f'{name}_consensus'}),
+                df.rename(columns=column_mapping),
                 on='index',
                 how='outer'
             )
-        merged_df.to_csv(os.path.join(data['parameters']['new_dir'], 'occurrences.csv'))
 
-        fig1 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'], mode='proportion')
-        fig2 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'], mode='reads')
-
-        with open(os.path.join(data['parameters']['new_dir'], 'distribution_proportional.png'), "wb") as f1:
-            fig1.write_image(f1)
-        with open(os.path.join(data['parameters']['new_dir'], 'distribution_absolute.png'),
-                  "wb") as f2:
-            fig2.write_image(f2)
-
-        return {'session_id': Path(data['parameters']['new_dir']).name,
-                'email': data['parameters']['email']}
+        return merged_df
     except Exception as e:
-        return {'session_id': Path(data['parameters']['new_dir']).name,
-                'email': data['parameters']['email']}
+        logger.error(f"Failed to create merged DataFrame: {e}")
+        raise DataProcessingError(f"DataFrame merge failed: {e}")
+
+
+@shared_task(ignore_result=False)
+def data_processing(data: Dict[str, Any]) -> Dict[str, str]:
+    """Main data processing function"""
+    output = {
+        'session_id': Path(data['parameters']['new_dir']).name,
+        'email': data['parameters']['email']
+    }
+
+    try:
+        # Initialize analyzer and get output data
+        analyzer = SequenceAnalyzer(data['parameters']['new_dir'])
+        output_data = analyzer.analyze()
+
+        # Create paths
+        base_dir = data['parameters']['new_dir']
+        file_paths = {
+            'json': os.path.join(base_dir, 'sequences.json'),
+            'csv': os.path.join(base_dir, 'occurrences.csv'),
+            'prop_plot': os.path.join(base_dir, 'distribution_proportional.png'),
+            'abs_plot': os.path.join(base_dir, 'distribution_absolute.png')
+        }
+
+        # Generate plots
+        plots = {
+            'prop_plot': visualization.plot_distribution(
+                output_data['sequences'],
+                data['parameters']['smoothing'],
+                mode='proportion'
+            ),
+            'abs_plot': visualization.plot_distribution(
+                output_data['sequences'],
+                data['parameters']['smoothing'],
+                mode='reads'
+            )
+        }
+
+        # Create merged DataFrame
+        merged_df = create_merged_dataframe(output_data['sequences'])
+
+        # Use ThreadPoolExecutor for parallel I/O operations
+        with ThreadPoolExecutor() as executor:
+            # Submit all save tasks
+            futures = [
+                executor.submit(save_json, file_paths['json'], output_data),
+                executor.submit(save_csv, file_paths['csv'], merged_df),
+                executor.submit(save_plot, plots['prop_plot'], file_paths['prop_plot']),
+                executor.submit(save_plot, plots['abs_plot'], file_paths['abs_plot'])
+            ]
+
+            # Wait for all tasks to complete and check for exceptions
+            for future in futures:
+                future.result()  # This will raise any exceptions that occurred
+
+        logger.info(f"Successfully processed data for session {output['session_id']}")
+
+    except Exception as e:
+        logger.error(f"Error processing data for session {output['session_id']}: {e}")
+        # You might want to add more specific error handling here
+
+    finally:
+        return output
+
+# @shared_task(ignore_result=False)
+# def data_processing(data):
+#     analyzer = SequenceAnalyzer(data['parameters']['new_dir'])  # Initialize the class with necessary parameters
+#     output_data = analyzer.analyze()  # Call the appropriate method
+#
+#     #output_data = sequence_distribution.main(data['parameters']['new_dir'])
+#     with open(os.path.join(data['parameters']['new_dir'], 'sequences.json'), 'w') as f:
+#         json.dump(output_data, f, default=str)
+#
+#     # save DataFrames with occurrences in CSV files for each service sequence
+#     # Initialize the merged dataframe with the 'index' column from the first dataframe
+#     try:
+#         merged_df = output_data['sequences'][0]['occurrences'][['index']].copy()
+#
+#         # Merge each dataframe into the merged_df
+#         for name, df in {i['type']:i['occurrences'] for i in output_data['sequences']}.items():
+#             merged_df = merged_df.merge(
+#                 df.rename(columns={'reads': f'{name}_reads', 'proportion': f'{name}_proportion', 'consensus': f'{name}_consensus'}),
+#                 on='index',
+#                 how='outer'
+#             )
+#         merged_df.to_csv(os.path.join(data['parameters']['new_dir'], 'occurrences.csv'))
+#
+#         fig1 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'], mode='proportion')
+#         fig2 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'], mode='reads')
+#
+#         with open(os.path.join(data['parameters']['new_dir'], 'distribution_proportional.png'), "wb") as f1:
+#             fig1.write_image(f1)
+#         with open(os.path.join(data['parameters']['new_dir'], 'distribution_absolute.png'),
+#                   "wb") as f2:
+#             fig2.write_image(f2)
+#
+#         return {'session_id': Path(data['parameters']['new_dir']).name,
+#                 'email': data['parameters']['email']}
+#     except Exception as e:
+#         return {'session_id': Path(data['parameters']['new_dir']).name,
+#                 'email': data['parameters']['email']}
 
 @app.route('/no_results')
 def no_results():
