@@ -1,29 +1,38 @@
-from datetime import datetime
+# Standard library imports
+import os
+import json
+import logging
+import secrets
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from typing import Dict, Any
+import configparser
+
+# Third-party imports
+import pandas as pd
 from flask import Flask, render_template, request, url_for, redirect, session, jsonify
 from flask_bootstrap import Bootstrap5
-from flask_wtf import FlaskForm, CSRFProtect
+from flask_mail import Mail, Message
+from flask_wtf import CSRFProtect
 from werkzeug.utils import secure_filename
-import configparser
+from celery import Celery, Task, shared_task
+from celery.result import AsyncResult
+import plotly
+
+# Local application imports
+from config import config
+from forms import InputForm
 from source import visualization
 from source.SequenceAnalyzer import SequenceAnalyzer
-import json
-import plotly
-import shutil
-from celery import Celery, Task
-from celery import shared_task
-from celery.result import AsyncResult
-from flask_mail import Mail, Message
-import os
-from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Any, List
-import logging
-import pandas as pd
-import secrets
-from pathlib import Path
-from forms import InputForm
-from utils import save_csv, save_json, save_plot, load_output_data, ensure_directory_exists, remove_session_dir
-# from factory import create_app
-from config import config
+from utils import (
+    save_csv,
+    save_json,
+    save_plot,
+    load_output_data,
+    ensure_directory_exists,
+    remove_session_dir,
+)
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -78,13 +87,13 @@ def allowed_file(filename: str) -> bool:
 def process_sequence_data(sequence_data: Dict) -> Dict:
     """Process sequence data for template rendering"""
     return {
-        'type': sequence_data['type'],
-        'sequence': sequence_data['sequence'],
+        'type': sequence_data.get('type', 'unknown'),
+        'sequence': sequence_data.get('sequence', ''),
         'peaks': sequence_data.get('peaks', []),
-        'noise_level': sequence_data.get('noise_level', 0),
+        'noise_level': sequence_data.get('noise_level', 0.0),
         'total_reads': sequence_data.get('total_reads', 0),
-        'total_proportion': sequence_data.get('total_proportion', 0),
-        'value_counts': sequence_data.get('value_counts', [])
+        'total_proportion': sequence_data.get('total_proportion', 0.0),
+        'value_counts': sequence_data.get('value_counts', []),
     }
 
 def read_config(directory_path):
