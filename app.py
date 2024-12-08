@@ -22,6 +22,8 @@ import secrets
 from pathlib import Path
 from forms import InputForm
 from utils import save_csv, save_json, save_plot, load_output_data, ensure_directory_exists
+# from factory import create_app
+from config import config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,12 +36,13 @@ class ConfigurationError(Exception):
     """Custom exception for configuration errors"""
     pass
 
-# Configuration
-class Config:
-    UPLOAD_FOLDER = 'uploads'
-    ALLOWED_EXTENSIONS = {'fastq', 'fq'}
-    MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB max file size
+# Get environment configuration
+# env = os.environ.get('FLASK_ENV', 'default')
+# app, celery_app = create_app(env)
 
+# Make the app and celery instances available at module level
+# celery = celery_app
+#
 def celery_init_app(app: Flask) -> Celery:
     class FlaskTask(Task):
         def __call__(self, *args: object, **kwargs: object) -> object:
@@ -53,60 +56,24 @@ def celery_init_app(app: Flask) -> Celery:
     return celery_app
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY')
-app.config['UPLOAD_FOLDER'] = 'static/sessions/'
-app.config.from_mapping(
-    CELERY=dict(
-        broker_url="redis://localhost:6379/0",
-        result_backend="redis://localhost:6379/0",
-        task_ignore_result=True,
-    ),
-)
+app.config.from_object(config['default'])
+config['default'].init_app(app)
 # Bootstrap-Flask requires this line
 bootstrap = Bootstrap5(app)
 # Flask-WTF requires this line
 csrf = CSRFProtect(app)
 celery_app = celery_init_app(app)
 
-
-# Configuration for Flask-Mail
-app.config['MAIL_SERVER'] = 'smtp.yandex.ru'
-app.config['MAIL_PORT'] = 465
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_USE_TLS'] = False
-app.config['MAIL_USE_SSL'] = True
-
 foo = secrets.token_urlsafe(16)
 app.secret_key = foo
-
+#
 # Initialize Flask-Mail
 mail = Mail(app)
 
 # Utility functions
 def allowed_file(filename: str) -> bool:
     """Check if file extension is allowed"""
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
-
-def process_sequences(form_data: List) -> List[Dict]:
-    """Process sequence data from form"""
-    return [{
-        'type': field['type'],
-        'sequence': field['sequence'].replace("\n", "").replace(" ", "")
-    } for field in form_data]
-
-def create_parameters_dict(form, filename: str, new_dir: str) -> Dict:
-    """Create parameters dictionary from form data"""
-    return {
-        'fuzzy_similarity': dict(form.fuzzy_similarity.choices).get(form.fuzzy_similarity.data),
-        'limit': form.limit.data,
-        'threshold': form.threshold.data,
-        'filename': filename,
-        'new_dir': new_dir,
-        'smoothing': dict(form.smoothing.choices).get(form.smoothing.data),
-        'email': form.email.data,
-        'datetime': str(datetime.now())
-    }
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
 def process_sequence_data(sequence_data: Dict) -> Dict:
     """Process sequence data for template rendering"""
@@ -173,10 +140,8 @@ def index():
         return render_template('index.html', form=form, page='index')
 
     try:
-        # Get cleaned data
-        # clean_data = form.clean_data()
         # Process sequences
-        sequences = process_sequences(form.items.data)
+        sequences = form.process_sequences()
 
         # Handle file upload
         file = form.file.data
@@ -185,7 +150,6 @@ def index():
 
         filename = secure_filename(file.filename)
         # Create session directory
-        # new_dir = Path(app.config['UPLOAD_FOLDER']) / clean_data['session_name']
         new_dir = Path(app.config['UPLOAD_FOLDER']) / str(form.session_name.data)
 
         # Ensure directory exists
@@ -195,7 +159,7 @@ def index():
         file.save(new_dir / filename)
 
         # Create parameters
-        parameters = create_parameters_dict(form, filename, str(new_dir))
+        parameters = form.create_parameters_dict(filename, str(new_dir))
 
         # Generate configuration
         generate_config(sequences, parameters)

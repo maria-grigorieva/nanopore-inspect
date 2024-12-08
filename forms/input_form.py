@@ -11,6 +11,7 @@ from wtforms.validators import (
     ValidationError, Regexp, Length
 )
 from pathlib import Path
+from datetime import datetime
 
 from .constants import SimilarityAlgorithm, SmoothingType, FormConfig
 from .validators import FileValidator
@@ -156,3 +157,23 @@ class InputForm(FlaskForm):
                 'email': self.email.data.lower().strip()
             }
         }
+
+    def create_parameters_dict(self, filename: str, new_dir: str):
+        """Create parameters dictionary from form data"""
+        return {
+            'fuzzy_similarity': dict(self.fuzzy_similarity.choices).get(self.fuzzy_similarity.data),
+            'limit': self.limit.data,
+            'threshold': self.threshold.data,
+            'filename': filename,
+            'new_dir': new_dir,
+            'smoothing': dict(self.smoothing.choices).get(self.smoothing.data),
+            'email': self.email.data.lower().strip(),
+            'datetime': str(datetime.now())
+        }
+
+    def process_sequences(self):
+        """Process sequence data from form"""
+        return [{
+            'type': field['type'],
+            'sequence': field['sequence'].replace("\n", "").replace(" ", "")
+        } for field in self.items.data]
