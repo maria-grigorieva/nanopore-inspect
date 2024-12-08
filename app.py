@@ -4,9 +4,8 @@ from flask_bootstrap import Bootstrap5
 from flask_wtf import FlaskForm, CSRFProtect
 from werkzeug.utils import secure_filename
 from flask_wtf.file import FileField, FileRequired, FileAllowed
-from wtforms.validators import DataRequired, Length, NumberRange, Email, ValidationError
-from wtforms import StringField, FloatField, SubmitField, FieldList, FormField, Form, SelectField, IntegerField
-import re
+from wtforms.validators import DataRequired, Email, NumberRange, ValidationError, Regexp, Length
+from wtforms import StringField, IntegerField, SelectField, FloatField, FileField, SubmitField, FormField, FieldList
 import configparser
 from source import sequence_distribution, visualization
 from source.SequenceAnalyzer import SequenceAnalyzer
@@ -21,9 +20,33 @@ from pathlib import Path
 from flask_mail import Mail, Message
 import os
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Any
+from typing import Dict, Any, List
 import logging
 import pandas as pd
+import secrets
+from typing import Optional
+import re
+from enum import Enum
+from dataclasses import dataclass
+from pathlib import Path
+# from functools import lru_cache
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+class DataProcessingError(Exception):
+    """Custom exception for data processing errors"""
+    pass
+
+class ConfigurationError(Exception):
+    """Custom exception for configuration errors"""
+    pass
+
+# Configuration
+class Config:
+    UPLOAD_FOLDER = 'uploads'
+    ALLOWED_EXTENSIONS = {'fastq', 'fq'}
+    MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB max file size
 
 def celery_init_app(app: Flask) -> Celery:
     class FlaskTask(Task):
@@ -62,48 +85,285 @@ app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_USE_TLS'] = False
 app.config['MAIL_USE_SSL'] = True
 
-
-import secrets
 foo = secrets.token_urlsafe(16)
 app.secret_key = foo
 
 # Initialize Flask-Mail
 mail = Mail(app)
 
-class SequenceItem(Form):
-    type = StringField('Type')
-    sequence = StringField('Sequence')
+# Utility functions
+def allowed_file(filename: str) -> bool:
+    """Check if file extension is allowed"""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in Config.ALLOWED_EXTENSIONS
+
+def ensure_directory_exists(directory: Path) -> None:
+    """Ensure directory exists, create if it doesn't"""
+    directory.mkdir(parents=True, exist_ok=True)
+
+def process_sequences(form_data: List) -> List[Dict]:
+    """Process sequence data from form"""
+    return [{
+        'type': field['type'],
+        'sequence': field['sequence'].replace("\n", "").replace(" ", "")
+    } for field in form_data]
+
+def create_parameters_dict(form, filename: str, new_dir: str) -> Dict:
+    """Create parameters dictionary from form data"""
+    return {
+        'fuzzy_similarity': dict(form.fuzzy_similarity.choices).get(form.fuzzy_similarity.data),
+        'limit': form.limit.data,
+        'threshold': form.threshold.data,
+        'filename': filename,
+        'new_dir': new_dir,
+        'smoothing': dict(form.smoothing.choices).get(form.smoothing.data),
+        'email': form.email.data,
+        'datetime': str(datetime.now())
+    }
+
+def load_output_data(file_path: Path) -> Dict:
+    """Load and parse output data from JSON file"""
+    try:
+        with open(file_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading output data: {e}")
+        raise DataProcessingError(f"Failed to load output data: {e}")
+
+def process_sequence_data(sequence_data: Dict) -> Dict:
+    """Process sequence data for template rendering"""
+    return {
+        'type': sequence_data['type'],
+        'sequence': sequence_data['sequence'],
+        'peaks': sequence_data.get('peaks', []),
+        'noise_level': sequence_data.get('noise_level', 0),
+        'total_reads': sequence_data.get('total_reads', 0),
+        'total_proportion': sequence_data.get('total_proportion', 0),
+        'value_counts': sequence_data.get('value_counts', [])
+    }
+
+
+# Constants
+class SimilarityAlgorithm(Enum):
+    LEVENSHTEIN = 'lev'
+    BLAST = 'blast'
+
+
+class SmoothingType(Enum):
+    NONE = 'None'
+    LOWESS = 'lowess'
+    WHITTAKER = 'whittaker'
+    SAVGOL = 'savgol'
+    CONFSMOOTH = 'confsmooth'
+
+
+@dataclass
+class FormConfig:
+    MIN_SEQUENCES: int = 1
+    MAX_SEQUENCES: int = 10
+    MIN_THRESHOLD: float = 0.1
+    MAX_THRESHOLD: float = 1.0
+    DEFAULT_THRESHOLD: float = 0.9
+    DEFAULT_LIMIT: int = 0
+    ALLOWED_FILE_EXTENSIONS: set = frozenset({'fastq'})
+    MAX_SESSION_NAME_LENGTH: int = 50
+    SESSION_NAME_PATTERN: str = r'^[a-zA-Z0-9_]+$'
+
+
+class FileValidator:
+    """Custom file validator class"""
+
+    @staticmethod
+    def validate_fastq(filename: str) -> bool:
+        return filename.lower().endswith('.fastq')
+
+    @staticmethod
+    def validate_file_size(file_data, max_size_mb: int = 100) -> bool:
+        # Check if file size is within limits
+        if file_data:
+            file_size = len(file_data.read())
+            file_data.seek(0)  # Reset file pointer
+            return file_size <= max_size_mb * 1024 * 1024
+        return False
+
+
+class SequenceItem(FlaskForm):
+    """Form for individual sequence items"""
+    type = StringField(
+        'Type',
+        validators=[
+            DataRequired(),
+            Length(max=50),
+            Regexp(r'^[a-zA-Z0-9_-]+$', message="Type must contain only letters, numbers, hyphen and underscore")
+        ]
+    )
+
+    sequence = StringField(
+        'Sequence',
+        validators=[
+            DataRequired(),
+            Regexp(r'^[ATCG]+$', message="Sequence must contain only valid DNA bases (A, T, C, G)")
+        ]
+    )
+
+    def validate_sequence(self, field):
+        """Validate sequence length and content"""
+        if len(field.data) < 10:
+            raise ValidationError("Sequence must be at least 10 bases long")
+        if len(field.data) > 1000:
+            raise ValidationError("Sequence must not exceed 1000 bases")
+
 
 class InputForm(FlaskForm):
-    session_name = StringField('Session Name', validators=[DataRequired()])
-    items = FieldList(FormField(SequenceItem), min_entries=1, max_entries=10)
-    limit = IntegerField('Limit', default=0)
-    fuzzy_similarity = SelectField('Sequence Similarity Algorithm',
-                                    choices=[('lev', 'Levenshtein'), ('blast', 'BLASTn')], default='lev')
-    threshold = FloatField('Threshold', validators=[DataRequired(), NumberRange(min=0.1, max=1.0)], default=0.9)
-    smoothing = SelectField('Smoothing',
-                choices=[('None','None'),('LOWESS','lowess'),('Whittaker Smoother', 'whittaker'),('savgol','savgol'),('confsmooth','confsmooth')])
-    email = StringField('Email', validators=[DataRequired(), Email()])
-    file = FileField('fastq_file', validators=[FileRequired(), FileAllowed(['fastq'], 'Only .fastq files are allowed!')])
+    # @lru_cache(maxsize=128)
+    """Main input form with enhanced validation and features"""
+    session_name = StringField(
+        'Session Name',
+        validators=[
+            DataRequired(),
+            Length(max=FormConfig.MAX_SESSION_NAME_LENGTH),
+            Regexp(
+                FormConfig.SESSION_NAME_PATTERN,
+                message="Session name must contain only letters, numbers, and underscore (_)"
+            )
+        ]
+    )
+
+    items = FieldList(
+        FormField(SequenceItem),
+        min_entries=FormConfig.MIN_SEQUENCES,
+        max_entries=FormConfig.MAX_SEQUENCES
+    )
+
+    limit = IntegerField(
+        'Limit',
+        default=FormConfig.DEFAULT_LIMIT,
+        validators=[NumberRange(min=0, message="Limit must be non-negative")]
+    )
+
+    fuzzy_similarity = SelectField(
+        'Sequence Similarity Algorithm',
+        choices=[(algo.value, algo.name.title()) for algo in SimilarityAlgorithm],
+        default=SimilarityAlgorithm.LEVENSHTEIN.value
+    )
+
+    threshold = FloatField(
+        'Threshold',
+        validators=[
+            DataRequired(),
+            NumberRange(
+                min=FormConfig.MIN_THRESHOLD,
+                max=FormConfig.MAX_THRESHOLD,
+                message=f"Threshold must be between {FormConfig.MIN_THRESHOLD} and {FormConfig.MAX_THRESHOLD}"
+            )
+        ],
+        default=FormConfig.DEFAULT_THRESHOLD
+    )
+
+    smoothing = SelectField(
+        'Smoothing',
+        choices=[(smooth.value, smooth.name.title()) for smooth in SmoothingType],
+        default=SmoothingType.NONE.value
+    )
+
+    email = StringField(
+        'Email',
+        validators=[
+            DataRequired(),
+            Email(message="Please enter a valid email address")
+        ]
+    )
+
+    file = FileField(
+        'fastq_file',
+        validators=[
+            FileRequired(message="Please select a FASTQ file"),
+            FileAllowed(
+                FormConfig.ALLOWED_FILE_EXTENSIONS,
+                message='Only .fastq files are allowed!'
+            )
+        ]
+    )
+
     submit = SubmitField('Submit')
 
-    # Custom validator for session_name
-    def validate_session_name(self, field):
-        # Only allow latin letters, numbers, and underscore (_)
-        if not re.match(r'^[a-zA-Z0-9_]+$', field.data):
-            raise ValidationError("Session name must contain only letters, numbers, and underscore (_)")
+    def __init__(self, *args, **kwargs):
+        """Initialize form with custom validation"""
+        super(InputForm, self).__init__(*args, **kwargs)
+        self.file_validator = FileValidator()
 
-    # Custom validator for file type
-    def validate_file(self, field):
-        # Check that the file has a .fastq extension
+    def validate_session_name(self, field) -> None:
+        """Validate session name and check for existing sessions"""
+        # Check if session already exists
+        session_path = Path(f"uploads/{field.data}")
+        if session_path.exists():
+            raise ValidationError("Session name already exists")
+
+    def validate_file(self, field) -> None:
+        """Validate file type and size"""
         if field.data:
-            filename = field.data.filename
-            if not filename.lower().endswith('.fastq'):
+            if not self.file_validator.validate_fastq(field.data.filename):
                 raise ValidationError('File must be in .fastq format')
 
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ['fastq']
+            if not self.file_validator.validate_file_size(field.data):
+                raise ValidationError('File size exceeds maximum limit (100MB)')
+
+    def validate_items(self, field) -> None:
+        """Validate sequence items"""
+        if len(field.data) < FormConfig.MIN_SEQUENCES:
+            raise ValidationError(f"At least {FormConfig.MIN_SEQUENCES} sequence is required")
+
+        # Check for duplicate sequence types
+        types = [item['type'] for item in field.data]
+        if len(types) != len(set(types)):
+            raise ValidationError("Duplicate sequence types are not allowed")
+
+    def clean_data(self) -> dict:
+        """Clean and format form data"""
+        return {
+            'session_name': self.session_name.data,
+            'sequences': [{
+                'type': item['type'],
+                'sequence': item['sequence'].upper().strip()
+            } for item in self.items.data],
+            'parameters': {
+                'limit': self.limit.data,
+                'fuzzy_similarity': self.fuzzy_similarity.data,
+                'threshold': self.threshold.data,
+                'smoothing': self.smoothing.data,
+                'email': self.email.data.lower().strip()
+            }
+        }
+#
+# class SequenceItem(Form):
+#     type = StringField('Type')
+#     sequence = StringField('Sequence')
+#
+# class InputForm(FlaskForm):
+#     session_name = StringField('Session Name', validators=[DataRequired()])
+#     items = FieldList(FormField(SequenceItem), min_entries=1, max_entries=10)
+#     limit = IntegerField('Limit', default=0)
+#     fuzzy_similarity = SelectField('Sequence Similarity Algorithm',
+#                                     choices=[('lev', 'Levenshtein'), ('blast', 'BLASTn')], default='lev')
+#     threshold = FloatField('Threshold', validators=[DataRequired(), NumberRange(min=0.1, max=1.0)], default=0.9)
+#     smoothing = SelectField('Smoothing',
+#                 choices=[('None','None'),('LOWESS','lowess'),('Whittaker Smoother', 'whittaker'),('savgol','savgol'),('confsmooth','confsmooth')])
+#     email = StringField('Email', validators=[DataRequired(), Email()])
+#     file = FileField('fastq_file', validators=[FileRequired(), FileAllowed(['fastq'], 'Only .fastq files are allowed!')])
+#     submit = SubmitField('Submit')
+#
+#     # Custom validator for session_name
+#     def validate_session_name(self, field):
+#         # Only allow latin letters, numbers, and underscore (_)
+#         if not re.match(r'^[a-zA-Z0-9_]+$', field.data):
+#             raise ValidationError("Session name must contain only letters, numbers, and underscore (_)")
+#
+#     # Custom validator for file type
+#     def validate_file(self, field):
+#         # Check that the file has a .fastq extension
+#         if field.data:
+#             filename = field.data.filename
+#             if not filename.lower().endswith('.fastq'):
+#                 raise ValidationError('File must be in .fastq format')
 
 def read_config(directory_path):
     config_file = os.path.join(directory_path, 'config.ini')
@@ -135,7 +395,7 @@ def check():
     current_directory = os.getcwd()  # Get the current working directory
     return f"Current working directory: {current_directory}"
 
-def gerenate_config(sequences,
+def generate_config(sequences,
                     parameters):
     config = configparser.ConfigParser()
     config['Sequences'] = {item['type']:item['sequence'] for item in sequences}
@@ -148,50 +408,52 @@ def gerenate_config(sequences,
     with open(os.path.join(parameters['new_dir'], 'config.ini'), 'w') as configfile:
         config.write(configfile)
 
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
+    """Handle main page requests"""
     form = InputForm()
-    if form.validate_on_submit():
-        sequences = []
-        for field in form.items.data:
-            seq_value = field['sequence'].replace("\n", "").replace(" ", "")
-            sequences.append({'type': field['type'],
-                              'sequence': seq_value})
-        limit = form.limit.data
-        fuzzy_similarity = dict(form.fuzzy_similarity.choices).get(form.fuzzy_similarity.data)
-        threshold = form.threshold.data
-        smoothing = dict(form.smoothing.choices).get(form.smoothing.data)
-        email = form.email.data
 
+    if not form.validate_on_submit():
+        return render_template('index.html', form=form, page='index')
+
+    try:
+        # Process sequences
+        sequences = process_sequences(form.items.data)
+
+        # Handle file upload
         file = form.file.data
+        if not file or not allowed_file(file.filename):
+            raise ValueError("Invalid file type")
+
         filename = secure_filename(file.filename)
-        new_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), app.config['UPLOAD_FOLDER'],
-                               str(form.session_name.data))
-        try:
-            os.mkdir(new_dir)
-        except Exception as e:
-            pass
-        # save fastq file to the local server
-        file.save(os.path.join(new_dir, filename))
+        new_dir = Path(app.config['UPLOAD_FOLDER']) / str(form.session_name.data)
+
+        # Ensure directory exists
+        ensure_directory_exists(new_dir)
+
+        # Save file
+        file.save(new_dir / filename)
+
+        # Create parameters
+        parameters = create_parameters_dict(form, filename, str(new_dir))
+
+        # Generate configuration
+        generate_config(sequences, parameters)
+
+        # Store session data
         session['session'] = form.session_name.data
-        parameters = {'fuzzy_similarity': fuzzy_similarity,
-                    'limit': limit,
-                     'threshold': threshold,
-                     'filename': filename,
-                     'new_dir': new_dir,
-                     'smoothing': smoothing,
-                     'email': email,
-                      'datetime': str(datetime.now())}
+        session['input_data'] = {
+            'sequences': {item['type']: item['sequence'] for item in sequences},
+            'parameters': parameters,
+            'session_name': form.session_name.data
+        }
 
-        gerenate_config(sequences,
-                        parameters)
-
-        input_data = {'sequences': {item['type']: item['sequence'] for item in sequences},
-                      'parameters': parameters,
-                      'session_name': form.session_name.data}
-        session['input_data'] = input_data
         return redirect(url_for('results'))
-    else:
+
+    except Exception as e:
+        logger.error(f"Error processing form: {e}")
+        #flash(f"An error occurred: {str(e)}", 'error')
         return render_template('index.html', form=form, page='index')
 
 
@@ -239,15 +501,6 @@ def generate_session_id():
     # Generate a random UUID (version 4)
     session_id = uuid.uuid4()
     return str(session_id)
-
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-
-class DataProcessingError(Exception):
-    """Custom exception for data processing errors"""
-    pass
 
 
 def save_json(file_path: str, data: Dict[str, Any]) -> None:
@@ -358,54 +611,15 @@ def data_processing(data: Dict[str, Any]) -> Dict[str, str]:
 
             # Wait for all tasks to complete and check for exceptions
             for future in futures:
-                future.result()  # This will raise any exceptions that occurred
+                future.result()
 
         logger.info(f"Successfully processed data for session {output['session_id']}")
 
     except Exception as e:
         logger.error(f"Error processing data for session {output['session_id']}: {e}")
-        # You might want to add more specific error handling here
 
     finally:
         return output
-
-# @shared_task(ignore_result=False)
-# def data_processing(data):
-#     analyzer = SequenceAnalyzer(data['parameters']['new_dir'])  # Initialize the class with necessary parameters
-#     output_data = analyzer.analyze()  # Call the appropriate method
-#
-#     #output_data = sequence_distribution.main(data['parameters']['new_dir'])
-#     with open(os.path.join(data['parameters']['new_dir'], 'sequences.json'), 'w') as f:
-#         json.dump(output_data, f, default=str)
-#
-#     # save DataFrames with occurrences in CSV files for each service sequence
-#     # Initialize the merged dataframe with the 'index' column from the first dataframe
-#     try:
-#         merged_df = output_data['sequences'][0]['occurrences'][['index']].copy()
-#
-#         # Merge each dataframe into the merged_df
-#         for name, df in {i['type']:i['occurrences'] for i in output_data['sequences']}.items():
-#             merged_df = merged_df.merge(
-#                 df.rename(columns={'reads': f'{name}_reads', 'proportion': f'{name}_proportion', 'consensus': f'{name}_consensus'}),
-#                 on='index',
-#                 how='outer'
-#             )
-#         merged_df.to_csv(os.path.join(data['parameters']['new_dir'], 'occurrences.csv'))
-#
-#         fig1 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'], mode='proportion')
-#         fig2 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'], mode='reads')
-#
-#         with open(os.path.join(data['parameters']['new_dir'], 'distribution_proportional.png'), "wb") as f1:
-#             fig1.write_image(f1)
-#         with open(os.path.join(data['parameters']['new_dir'], 'distribution_absolute.png'),
-#                   "wb") as f2:
-#             fig2.write_image(f2)
-#
-#         return {'session_id': Path(data['parameters']['new_dir']).name,
-#                 'email': data['parameters']['email']}
-#     except Exception as e:
-#         return {'session_id': Path(data['parameters']['new_dir']).name,
-#                 'email': data['parameters']['email']}
 
 @app.route('/no_results')
 def no_results():
@@ -413,45 +627,61 @@ def no_results():
 
 @app.route('/results')
 def results():
-    if 'input_data' in session and session['input_data'] is not None:
+    """Handle results page requests"""
+    if 'input_data' not in session or session['input_data'] is None:
+        return render_template('no_results.html', page='results')
+
+    try:
         data = session['input_data']
-        if os.path.exists(os.path.join(data['parameters']['new_dir'], 'sequences.json')):
-            with open(os.path.join(data['parameters']['new_dir'], 'sequences.json'), 'r') as f1:
-                output_data = json.load(f1)
+        sequences_file = Path(data['parameters']['new_dir']) / 'sequences.json'
 
-                fig1 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'],
-                                                       mode='proportion')
-                fig2 = visualization.plot_distribution(output_data['sequences'], data['parameters']['smoothing'],
-                                                       mode='reads')
-
-                distrJSON1 = json.dumps(fig1, cls=plotly.utils.PlotlyJSONEncoder)
-                distrJSON2 = json.dumps(fig2, cls=plotly.utils.PlotlyJSONEncoder)
-                sequences = [{'type': seq['type'],
-                              'sequence': seq['sequence'],
-                              'peaks': seq['peaks'] if 'peaks' in seq else [],
-                              'noise_level': seq['noise_level'] if 'noise_level' in seq else 0,
-                              'total_reads': seq['total_reads'] if 'total_reads' in seq else 0,
-                              'total_proportion': seq['total_proportion'] if 'total_proportion' in seq else 0,
-                              'value_counts': seq['value_counts'] if 'value_counts' in seq else []
-                              } for seq in output_data['sequences']]
-                fastq_parameters = {'n_records': output_data['parameters']['n_records'],
-                                    'avg_noise_level': output_data['parameters']['avg_noise_level']}
-
-                return render_template('results.html',
-                                       plots={'hist1': distrJSON1,
-                                              'hist2': distrJSON2},
-                                       data=data,
-                                       sequences=sequences,
-                                       fastq_parameters=fastq_parameters,
-                                       page='results')
-        else:
+        if not sequences_file.exists():
+            # Start async processing
             result = data_processing.delay(data)
             return render_template('async_result.html',
-                               result_id=result.id,
-                               parameters = data['parameters'],
-                               page='results')
-    else:
-        return render_template('no_results.html', page='results')
+                                result_id=result.id,
+                                parameters=data['parameters'],
+                                page='results')
+
+        # Load and process output data
+        output_data = load_output_data(sequences_file)
+
+        # Generate plots
+        plots = {
+            'hist1': json.dumps(
+                visualization.plot_distribution(output_data['sequences'],
+                                             data['parameters']['smoothing'],
+                                             mode='proportion'),
+                cls=plotly.utils.PlotlyJSONEncoder
+            ),
+            'hist2': json.dumps(
+                visualization.plot_distribution(output_data['sequences'],
+                                             data['parameters']['smoothing'],
+                                             mode='reads'),
+                cls=plotly.utils.PlotlyJSONEncoder
+            )
+        }
+
+        # Process sequences
+        sequences = [process_sequence_data(seq) for seq in output_data['sequences']]
+
+        # Extract fastq parameters
+        fastq_parameters = {
+            'n_records': output_data['parameters']['n_records'],
+            'avg_noise_level': output_data['parameters']['avg_noise_level']
+        }
+
+        return render_template('results.html',
+                             plots=plots,
+                             data=data,
+                             sequences=sequences,
+                             fastq_parameters=fastq_parameters,
+                             page='results')
+
+    except Exception as e:
+        logger.error(f"Error processing results: {e}")
+        #flash("An error occurred while processing results", 'error')
+        return redirect(url_for('index'))
 
 def send_email(email, sessionID, path):
     recipient = email
@@ -508,6 +738,16 @@ def task_result(id: str) -> dict[str, object]:
     #     "successful": result.successful(),
     #     "value": result.result if result.ready() else None,
     # }
+
+# Error handlers
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('404.html'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return render_template('500.html'), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True)
