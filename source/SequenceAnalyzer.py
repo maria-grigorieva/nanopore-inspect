@@ -134,17 +134,32 @@ class SequenceAnalyzer:
             self.parameters.smoothing_type
         )
 
-        peaks, distance = self.peak_analyzer.analyze_peaks(
-            sequence.type,
-            sequence.sequence,
-            sequence.occurrences['smoothed'].values,
-            sequence.occurrences['reads'].values,
-            sequence.occurrences['proportion'].values,
-            sequence.occurrences['consensus'].values
-        )
+        # Add error handling
+        try:
+            result = self.peak_analyzer.analyze_peaks(
+                sequence.type,
+                sequence.sequence,
+                sequence.occurrences['smoothed'].values,
+                sequence.occurrences['reads'].values,
+                sequence.occurrences['proportion'].values,
+                sequence.occurrences['consensus'].values
+            )
 
-        sequence.peaks = peaks
-        sequence.average_peaks_distance = distance
+            if result is None:
+                # Handle the None case
+                sequence.peaks = []
+                sequence.average_peaks_distance = 0
+                return
+
+            peaks, distance = result
+            sequence.peaks = peaks
+            sequence.average_peaks_distance = distance
+
+        except (TypeError, ValueError) as e:
+            # Handle the error appropriately
+            print(f"Error analyzing peaks: {e}")
+            sequence.peaks = []
+            sequence.average_peaks_distance = 0
 
     def _prepare_result_data(self) -> Dict[str, Any]:
         """Prepare final result data"""

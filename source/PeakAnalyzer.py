@@ -55,35 +55,53 @@ class PeakAnalyzer:
                       proportion_array,
                       consensus_array):
         """Main method for peak analysis"""
+        # Initialize default return values
         list_of_peaks = []
-        peaks, initial_bases = find_peaks(smoothed_array)
-        prominences = peak_prominences(smoothed_array, peaks)[0]
-        avg_prominence = np.mean(prominences)
+        average_peaks_distance = 0
 
-        # Find peaks with adjusted parameters
-        peak_indices, properties = find_peaks(smoothed_array,
-                                              prominence=avg_prominence,
-                                              distance=len(reference_value),
-                                              width=5,
-                                              rel_height=0.7)
+        try:
+            # Find initial peaks
+            peaks, initial_bases = find_peaks(smoothed_array)
 
-        if len(peak_indices) == 0:
-            peak_indices = peaks
-            # Get peak boundaries for initial peaks
-            peak_info = self.find_peak_boundaries(smoothed_array, peaks)
-        else:
-            # Get peak boundaries for detected peaks
+            # If no initial peaks found, return default values
+            if len(peaks) == 0:
+                return list_of_peaks, average_peaks_distance
+
+            # Calculate prominences
+            prominences = peak_prominences(smoothed_array, peaks)[0]
+            avg_prominence = np.mean(prominences) if len(prominences) > 0 else 0
+
+            # Find peaks with adjusted parameters
+            peak_indices, properties = find_peaks(smoothed_array,
+                                                  prominence=avg_prominence,
+                                                  distance=len(reference_value),
+                                                  width=5,
+                                                  rel_height=0.7)
+
+            # If no peaks found with adjusted parameters, use initial peaks
+            if len(peak_indices) == 0:
+                peak_indices = peaks
+
+            # Get peak boundaries
             peak_info = self.find_peak_boundaries(smoothed_array, peak_indices)
 
-        if peak_info:
-            extremums = self._process_peaks(reads_array,
-                                            proportion_array,
-                                            consensus_array,
-                                            peak_indices,
-                                            peak_info)
-            list_of_peaks = extremums if len(extremums) > 0 else []
-            average_peaks_distance = self.calculate_average_peaks_distance(list_of_peaks)
+            # If peak boundaries found, process peaks
+            if peak_info:
+                extremums = self._process_peaks(reads_array,
+                                                proportion_array,
+                                                consensus_array,
+                                                peak_indices,
+                                                peak_info)
+                list_of_peaks = extremums if len(extremums) > 0 else []
+                if list_of_peaks:
+                    average_peaks_distance = self.calculate_average_peaks_distance(list_of_peaks)
 
+        except Exception as e:
+            print(f"Error during peak analysis: {e}")
+            # Log the error if you have logging configured
+            # logger.error(f"Peak analysis failed: {e}")
+
+        # Always return a tuple of list and number
         return list_of_peaks, average_peaks_distance
 
     def _process_peaks(self, reads_array,

@@ -75,8 +75,12 @@ class BioSequenceAligner(ABC):
 
         msa = MultipleSeqAlignment(records)
         alignment = msa.alignment
-        motif = Motif("ACGT", alignment)
-        return str(motif.consensus)
+        try:
+            motif = Motif("ACGT", alignment)
+            return str(motif.consensus)
+        except Exception as e:
+            print(e)
+            return str('')
 
     def calculate_proportions_and_motifs(self, n_records, avg_length):
         unique_values, counts = np.unique(self.matches_df['position'], return_counts=True)
