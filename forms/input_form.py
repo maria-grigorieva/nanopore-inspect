@@ -38,8 +38,8 @@ class SequenceItem(FlaskForm):
         ]
     )
 
-    @staticmethod
-    def validate_sequence(field):
+
+    def validate_sequence(self, field):
         if len(field.data) < 10:
             raise ValidationError("Sequence must be at least 10 bases long")
         if len(field.data) > 100:
@@ -122,8 +122,8 @@ class InputForm(FlaskForm):
         super(InputForm, self).__init__(*args, **kwargs)
         self.file_validator = FileValidator()
 
-    @staticmethod
-    def validate_session_name(field):
+
+    def validate_session_name(self, field):
         session_path = Path(f"uploads/{field.data}")
         if session_path.exists():
             raise ValidationError("Session name already exists")
@@ -136,8 +136,7 @@ class InputForm(FlaskForm):
             if not self.file_validator.validate_file_size(field.data):
                 raise ValidationError('File size exceeds maximum limit (100MB)')
 
-    @staticmethod
-    def validate_items(field):
+    def validate_items(self, field):
         if len(field.data) < FormConfig.MIN_SEQUENCES:
             raise ValidationError(f"At least {FormConfig.MIN_SEQUENCES} sequence is required")
 
