@@ -57,7 +57,7 @@
   <li class="list-group-item">
       <div class="form-group">
                 <label for="fuzzy_similarity">Fuzzy Similarity Matcher</label>
-                {{ form.fuzzy_similarity(class="form-control") }}
+          {{ form.fuzzy_similarity(class="form-control", data_bs_toggle="tooltip", data_bs_placement="top", title="Choose Levenshtein for smaller DNA libraries (<1000 reads) and BLASTn for larger ones") }}
             </div>
   </li>
   <li class="list-group-item">
