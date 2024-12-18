@@ -1,13 +1,16 @@
-from .BioSequenceAligner import BioSequenceAligner
-from Bio.Blast import NCBIXML
-from Bio import SeqIO
 import os
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
+import subprocess
 import tempfile
 import time
-import subprocess
+
 import pandas as pd
+from Bio import SeqIO
+from Bio.Blast import NCBIXML
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+
+from .BioSequenceAligner import BioSequenceAligner
+
 
 class BlastnBio(BioSequenceAligner):
 
@@ -125,7 +128,8 @@ class BlastnBio(BioSequenceAligner):
         os.unlink(self.db_fasta_file)
         os.unlink(self.query_fasta_file)
 
-    def remove_blast_temp_files(self, db_prefix):
+    @staticmethod
+    def remove_blast_temp_files(db_prefix):
         # List of common BLAST database file extensions
         extensions = ["nhr", "nin", "nsq", "ndb", "not", "ntf", "nto", "njs"]
 

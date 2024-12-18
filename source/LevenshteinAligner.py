@@ -1,12 +1,13 @@
-from .BioSequenceAligner import BioSequenceAligner
 import os
 import time
-from rapidfuzz import fuzz
-from scipy.signal import find_peaks
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import tempfile
+from rapidfuzz import fuzz
+from scipy.signal import find_peaks
+
+from .BioSequenceAligner import BioSequenceAligner
 
 
 class LevenshteinBio(BioSequenceAligner):

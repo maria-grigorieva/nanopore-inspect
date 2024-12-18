@@ -1,23 +1,23 @@
 # Standard library imports
-import os
+import configparser
 import json
 import logging
+import os
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, Any
-import configparser
 
 # Third-party imports
 import pandas as pd
+import plotly
+from celery import Celery, Task, shared_task
+from celery.result import AsyncResult
 from flask import Flask, render_template, request, url_for, redirect, session, jsonify
 from flask_bootstrap import Bootstrap5
 from flask_mail import Mail, Message
 from flask_wtf import CSRFProtect
 from werkzeug.utils import secure_filename
-from celery import Celery, Task, shared_task
-from celery.result import AsyncResult
-import plotly
 
 # Local application imports
 from config import config
@@ -33,17 +33,19 @@ from utils import (
     remove_session_dir,
 )
 
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class DataProcessingError(Exception):
     """Custom exception for data processing errors"""
     pass
 
+
 class ConfigurationError(Exception):
     """Custom exception for configuration errors"""
     pass
+
 
 # Get environment configuration
 # env = os.environ.get('FLASK_ENV', 'default')
@@ -64,6 +66,7 @@ def celery_init_app(app: Flask) -> Celery:
     app.extensions["celery"] = celery_app
     return celery_app
 
+
 app = Flask(__name__)
 app.config.from_object(config['default'])
 config['default'].init_app(app)
@@ -79,10 +82,12 @@ app.secret_key = foo
 # Initialize Flask-Mail
 mail = Mail(app)
 
+
 # Utility functions
 def allowed_file(filename: str) -> bool:
     """Check if file extension is allowed"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+
 
 def process_sequence_data(sequence_data: Dict) -> Dict:
     """Process sequence data for template rendering"""
@@ -96,6 +101,7 @@ def process_sequence_data(sequence_data: Dict) -> Dict:
         'value_counts': sequence_data.get('value_counts', []),
     }
 
+
 def read_config(directory_path):
     config_file = os.path.join(directory_path, 'config.ini')
     config = configparser.ConfigParser()
@@ -103,6 +109,7 @@ def read_config(directory_path):
     parameters = dict(config['Parameters'])
     sequences = dict(config['Sequences'])
     return parameters, sequences
+
 
 def process_directories(base_dir):
     all_sessions = []
@@ -121,15 +128,17 @@ def process_directories(base_dir):
                 all_sessions.append(session_dict)
     return all_sessions
 
+
 @app.route('/check')
 def check():
     current_directory = os.getcwd()  # Get the current working directory
     return f"Current working directory: {current_directory}"
 
+
 def generate_config(sequences,
                     parameters):
     config = configparser.ConfigParser()
-    config['Sequences'] = {item['type']:item['sequence'] for item in sequences}
+    config['Sequences'] = {item['type']: item['sequence'] for item in sequences}
     config['Parameters'] = {'fuzzy_similarity': parameters['fuzzy_similarity'],
                             'limit': parameters['limit'],
                             'threshold': parameters['threshold'],
@@ -185,7 +194,7 @@ def index():
 
     except Exception as e:
         logger.error(f"Error processing form: {e}")
-        #flash(f"An error occurred: {str(e)}", 'error')
+        # flash(f"An error occurred: {str(e)}", 'error')
         return render_template('index.html', form=form, page='index')
 
 
@@ -193,12 +202,15 @@ def index():
 def contacts():
     return render_template('contacts.html')
 
+
 @app.route('/sessions')
 def sessions():
     base_directory = app.config['UPLOAD_FOLDER']
     all_sessions_list = process_directories(base_directory)
 
     return render_template('sessions.html', sessions=all_sessions_list, page='sessions')
+
+
 #
 @app.route('/experiment/<sessionID>')
 def experiment(sessionID):
@@ -216,6 +228,7 @@ def experiment(sessionID):
         return redirect(url_for('results'))
     except Exception as e:
         return redirect(url_for('no_results'))
+
 
 @app.route('/delete/<sessionID>')
 def delete(sessionID):
@@ -314,9 +327,11 @@ def data_processing(data: Dict[str, Any]) -> Dict[str, str]:
     finally:
         return output
 
+
 @app.route('/no_results')
 def no_results():
     return render_template('no_results.html')
+
 
 @app.route('/results')
 def results():
@@ -332,9 +347,9 @@ def results():
             # Start async processing
             result = data_processing.delay(data)
             return render_template('async_result.html',
-                                result_id=result.id,
-                                parameters=data['parameters'],
-                                page='results')
+                                   result_id=result.id,
+                                   parameters=data['parameters'],
+                                   page='results')
 
         # Load and process output data
         output_data = load_output_data(sequences_file)
@@ -343,14 +358,14 @@ def results():
         plots = {
             'hist1': json.dumps(
                 visualization.plot_distribution(output_data['sequences'],
-                                             data['parameters']['smoothing'],
-                                             mode='proportion'),
+                                                data['parameters']['smoothing'],
+                                                mode='proportion'),
                 cls=plotly.utils.PlotlyJSONEncoder
             ),
             'hist2': json.dumps(
                 visualization.plot_distribution(output_data['sequences'],
-                                             data['parameters']['smoothing'],
-                                             mode='reads'),
+                                                data['parameters']['smoothing'],
+                                                mode='reads'),
                 cls=plotly.utils.PlotlyJSONEncoder
             )
         }
@@ -365,16 +380,17 @@ def results():
         }
 
         return render_template('results.html',
-                             plots=plots,
-                             data=data,
-                             sequences=sequences,
-                             fastq_parameters=fastq_parameters,
-                             page='results')
+                               plots=plots,
+                               data=data,
+                               sequences=sequences,
+                               fastq_parameters=fastq_parameters,
+                               page='results')
 
     except Exception as e:
         logger.error(f"Error processing results: {e}")
-        #flash("An error occurred while processing results", 'error')
+        # flash("An error occurred while processing results", 'error')
         return redirect(url_for('index'))
+
 
 def send_email(email, sessionID, path):
     recipient = email
@@ -392,6 +408,7 @@ def send_email(email, sessionID, path):
         return f"Email sent to {recipient}!"
     except Exception as e:
         return f"Failed to send email. Error: {str(e)}"
+
 
 @app.route('/send_email')
 def send_email_test():
@@ -413,6 +430,7 @@ def send_email_test():
         return f"Email sent to {recipient}!"
     except Exception as e:
         return f"Failed to send email. Error: {str(e)}"
+
 
 @app.route("/result/<id>", methods=['GET', 'POST'])
 def task_result(id: str) -> object:
@@ -463,6 +481,7 @@ def task_result(id: str) -> object:
 @app.errorhandler(404)
 def not_found_error(error):
     return render_template('404.html'), 404
+
 
 @app.errorhandler(500)
 def internal_error(error):

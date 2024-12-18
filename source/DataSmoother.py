@@ -1,10 +1,10 @@
 import numpy as np
+from confsmooth import confsmooth
+from scipy.signal import savgol_filter
+from scipy.stats import variation
 from statsmodels.nonparametric.smoothers_lowess import lowess
 from whittaker_eilers import WhittakerSmoother
-from statsmodels.nonparametric.kernel_regression import KernelReg
-from confsmooth import confsmooth
-from scipy.stats import variation
-from scipy.signal import savgol_filter
+
 
 class DataSmoother:
     """Class handling all data smoothing operations"""

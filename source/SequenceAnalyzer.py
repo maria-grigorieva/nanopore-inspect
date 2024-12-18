@@ -1,14 +1,14 @@
-from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
-from Bio import SeqIO
-import numpy as np
-from tqdm import tqdm
 import configparser
 import os
-from .BioSequenceAligner import BioSequenceAligner
-from .LevenshteinAligner import LevenshteinBio
+from dataclasses import dataclass
+from typing import List, Dict, Any
+
+import numpy as np
+from Bio import SeqIO
+
 from .BlastnAligner import BlastnBio
 from .DataSmoother import DataSmoother
+from .LevenshteinAligner import LevenshteinBio
 from .PeakAnalyzer import PeakAnalyzer
 
 

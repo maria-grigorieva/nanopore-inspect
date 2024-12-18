@@ -1,7 +1,5 @@
-import plotly
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import numpy as np
 import pandas as pd
 
 def plot_distribution(sequences, smoothing, mode='proportion'):

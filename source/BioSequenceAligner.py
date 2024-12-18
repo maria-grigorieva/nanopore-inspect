@@ -1,13 +1,15 @@
-from abc import ABC, abstractmethod
 import os
 import tempfile
-from Bio import SeqIO
-from Bio.Seq import Seq
-from Bio.SeqRecord import SeqRecord
-from Bio.Align import MultipleSeqAlignment
-from Bio.motifs import Motif
+from abc import ABC, abstractmethod
+
 import numpy as np
 import pandas as pd
+from Bio import SeqIO
+from Bio.Align import MultipleSeqAlignment
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.motifs import Motif
+
 
 class BioSequenceAligner(ABC):
     """
@@ -63,7 +65,8 @@ class BioSequenceAligner(ABC):
             SeqIO.convert(self.db_file, "fastq", self.db_fasta_file, "fasta")
         print(f"Converted {self.db_file} to {self.db_fasta_file}")
 
-    def calculate_consensus(self, subset):
+    @staticmethod
+    def calculate_consensus(subset):
         def pad_sequences(seqs):
             max_length = max(len(seq) for seq in seqs)
             padded_seqs = [seq + '-' * (max_length - len(seq)) for seq in seqs]
