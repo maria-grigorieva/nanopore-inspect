@@ -13,6 +13,7 @@ import pandas as pd
 import plotly
 from celery import Celery, Task, shared_task
 from celery.result import AsyncResult
+from wtforms.validators import ValidationError
 from flask import Flask, render_template, request, url_for, redirect, session, jsonify
 from flask_bootstrap import Bootstrap5
 from flask_mail import Mail, Message
@@ -254,6 +255,10 @@ def create_merged_dataframe(sequences: list) -> pd.DataFrame:
                 'proportion': f'{name}_proportion',
                 'consensus': f'{name}_consensus'
             }
+            # Add smoothed column mapping only if it exists
+            if 'smoothed' in df.columns:
+                column_mapping['smoothed'] = f'{name}_smoothed'
+
             merged_df = merged_df.merge(
                 df.rename(columns=column_mapping),
                 on='index',
