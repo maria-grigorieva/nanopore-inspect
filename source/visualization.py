@@ -50,7 +50,7 @@ def plot_distribution(sequences, smoothing, mode='proportion'):
             fig_legend = (f'{title}:  '
                           f'proportion {total_proportion} | reads {total_reads} ') \
                 if mode == 'proportion' else \
-                (f'{title}:'
+                (f'{title}:  '
                  f'{total_reads} | {total_proportion}')
 
             # Main curve with enhanced styling
