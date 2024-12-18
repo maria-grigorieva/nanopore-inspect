@@ -39,14 +39,19 @@ def plot_distribution(sequences, smoothing, mode='proportion'):
             noise = f"{p['noise_level']:.3f}"
 
             # Create more readable legend labels
-            fig_legend = (f'{title}<br>'
-                          f'Total Prop: {total_proportion} | '
-                          f'Reads: {total_reads}<br>'
-                          f'Noise: {noise}') if mode == 'proportion' else \
-                (f'{title}<br>'
-                 f'Reads: {total_reads} | '
-                 f'Prop: {total_proportion}<br>'
-                 f'Noise: {noise}')
+            # fig_legend = (f'{title}<br>'
+            #               f'Total Prop: {total_proportion} | '
+            #               f'Reads: {total_reads}<br>'
+            #               f'Noise: {noise}') if mode == 'proportion' else \
+            #     (f'{title}<br>'
+            #      f'Reads: {total_reads} | '
+            #      f'Prop: {total_proportion}<br>'
+            #      f'Noise: {noise}')
+            fig_legend = (f'{title}:  '
+                          f'proportion {total_proportion} | reads {total_reads} ') \
+                if mode == 'proportion' else \
+                (f'{title}:'
+                 f'{total_reads} | {total_proportion}')
 
             # Main curve with enhanced styling
             fig.add_trace(go.Scatter(
