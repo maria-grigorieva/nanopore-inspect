@@ -136,7 +136,8 @@ class SequenceAnalyzer:
 
         # Add error handling
         try:
-            result = self.peak_analyzer.analyze_peaks(
+            analyzer = PeakAnalyzer(min_distance_factor=0.6)
+            result = analyzer.analyze_peaks(
                 sequence.type,
                 sequence.sequence,
                 sequence.occurrences['smoothed'].values,
