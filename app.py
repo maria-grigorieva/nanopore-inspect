@@ -253,11 +253,12 @@ def create_merged_dataframe(sequences: list) -> pd.DataFrame:
             column_mapping = {
                 'reads': f'{name}_reads',
                 'proportion': f'{name}_proportion',
-                'consensus': f'{name}_consensus'
+                'consensus': f'{name}_consensus',
+                'smoothed': f'{name}_smoothed'
             }
             # Add smoothed column mapping only if it exists
-            if 'smoothed' in df.columns:
-                column_mapping['smoothed'] = f'{name}_smoothed'
+            # if 'smoothed' in df.columns:
+            #     column_mapping['smoothed'] = f'{name}_smoothed'
 
             merged_df = merged_df.merge(
                 df.rename(columns=column_mapping),
