@@ -7,7 +7,7 @@ class FileValidator:
         return filename.lower().endswith('.fastq')
 
     @staticmethod
-    def validate_file_size(file_data, max_size_mb: int = 100) -> bool:
+    def validate_file_size(file_data, max_size_mb: int = 1000) -> bool:
         if file_data:
             file_size = len(file_data.read())
             file_data.seek(0)
