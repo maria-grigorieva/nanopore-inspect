@@ -34,7 +34,7 @@ def plot_distribution(sequences, smoothing, mode='proportion'):
 
         if 'value_counts' in p:
             df = pd.DataFrame(p['value_counts'])
-            total_proportion = f"{p['total_proportion']:.3f}"
+            total_proportion = f"{p['total_proportion']*100:.2f}"
             total_reads = f"{p['total_reads']:,}"
             noise = f"{p['noise_level']:.3f}"
 
@@ -47,11 +47,11 @@ def plot_distribution(sequences, smoothing, mode='proportion'):
             #      f'Reads: {total_reads} | '
             #      f'Prop: {total_proportion}<br>'
             #      f'Noise: {noise}')
-            fig_legend = (f'{title}:  '
-                          f'proportion {total_proportion} | reads {total_reads} ') \
+            fig_legend = (f'{title}:<br>'
+                          f'{total_proportion}% | {total_reads} reads') \
                 if mode == 'proportion' else \
-                (f'{title}:  '
-                 f'{total_reads} | {total_proportion}')
+                (f'{title}:<br>'
+                 f'{total_reads} reads | {total_proportion}%')
 
             # Main curve with enhanced styling
             fig.add_trace(go.Scatter(
