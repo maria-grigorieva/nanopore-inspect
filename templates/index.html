@@ -123,9 +123,17 @@
                 <tr id="items-${formCount}-type">
                     <td><input class="form-control" id="items-${formCount}-type" name="items-${formCount}-type" required type="text" value=""></td>
                     <td><input class="form-control" id="items-${formCount}-sequence" name="items-${formCount}-sequence" required type="text" value=""></td>
+                    <td><button type="button" class="btn btn-danger btn-sm remove-item">Remove</button></td>
                 </tr>
         `;
         document.getElementById('items').appendChild(newItem);
+    });
+
+    // Add event listener for remove buttons
+    document.getElementById('items').addEventListener('click', function(event) {
+        if (event.target.classList.contains('remove-item')) {
+            event.target.closest('tr').remove();
+        }
     });
 
 </script>
