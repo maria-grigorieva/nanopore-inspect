@@ -84,32 +84,35 @@ class BlastnBio(BioSequenceAligner):
         with open(os.path.join(self.output_dir, self.blast_output_xml)) as result_handle:
             blast_record = NCBIXML.read(result_handle)
 
-        # Extract and print alignments
-        for alignment in blast_record.alignments:
-            accession = int(alignment.accession)
-            curr_sequence = self.sequences[accession]
-            for hsp in alignment.hsps:
-                # print("\n****Alignment****")
-                # print(f"Sequence: {alignment.title}")
-                # print(f"Length: {alignment.length}")
-                # print(f"Score: {hsp.score}")
-                # print(f"Alignment:\n{hsp.query}\n{hsp.match}\n{hsp.sbjct}")
-                start_index = hsp.sbjct_start - hsp.query_start - 1
-                end_index = hsp.sbjct_end if hsp.sbjct_end - start_index >= self.query_string_length else \
-                            start_index + self.query_string_length + 1
-                # self.raw_alignments_list.append(curr_sequence[start_index:end_index])
-                # self.blast_alignments_list.append(hsp.sbjct)
-                # self.occurrences.append(start_index)
-                matches_data.append({
-                    'line_idx': accession,
-                    'position': start_index,
-                    'score': hsp.score,
-                    'match': curr_sequence[start_index:end_index]
-                })
-        self.fuzzy_matches = len(blast_record.alignments)
-        print(f"Total {len(blast_record.alignments)} alignments have been found out of {self.get_db_length()}.")
-        # Convert matches to DataFrame for easy analysis
-        self.matches_df = pd.DataFrame(matches_data)
+        if len(blast_record.alignments) == 0:
+            pass
+        else:
+            # Extract and print alignments
+            for alignment in blast_record.alignments:
+                accession = int(alignment.accession)
+                curr_sequence = self.sequences[accession]
+                for hsp in alignment.hsps:
+                    # print("\n****Alignment****")
+                    # print(f"Sequence: {alignment.title}")
+                    # print(f"Length: {alignment.length}")
+                    # print(f"Score: {hsp.score}")
+                    # print(f"Alignment:\n{hsp.query}\n{hsp.match}\n{hsp.sbjct}")
+                    start_index = hsp.sbjct_start - hsp.query_start - 1
+                    end_index = hsp.sbjct_end if hsp.sbjct_end - start_index >= self.query_string_length else \
+                                start_index + self.query_string_length + 1
+                    # self.raw_alignments_list.append(curr_sequence[start_index:end_index])
+                    # self.blast_alignments_list.append(hsp.sbjct)
+                    # self.occurrences.append(start_index)
+                    matches_data.append({
+                        'line_idx': accession,
+                        'position': start_index,
+                        'score': hsp.score,
+                        'match': curr_sequence[start_index:end_index]
+                    })
+            self.fuzzy_matches = len(blast_record.alignments)
+            print(f"Total {len(blast_record.alignments)} alignments have been found out of {self.get_db_length()}.")
+            # Convert matches to DataFrame for easy analysis
+            self.matches_df = pd.DataFrame(matches_data)
 
     def fasta_from_aligments(self):
         with open(os.path.join(self.output_dir, self.output_fasta_raw), 'w') as f:

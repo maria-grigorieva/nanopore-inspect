@@ -10,6 +10,7 @@ from .BlastnAligner import BlastnBio
 from .DataSmoother import DataSmoother
 from .LevenshteinAligner import LevenshteinBio
 from .PeakAnalyzer import PeakAnalyzer
+import logging
 
 
 @dataclass
@@ -106,6 +107,7 @@ class SequenceAnalyzer:
         sequence.value_counts = (sequence.occurrences.to_dict('records')
                                  if sequence.occurrences.shape[0] > 0 else [])
 
+
     def _get_alignments(self, sequence: SequenceData) -> Dict[str, Any]:
         """Get sequence alignments based on similarity search method"""
         if self.parameters.similarity_search == 'Levenshtein':
@@ -122,7 +124,10 @@ class SequenceAnalyzer:
             )
 
         aligner.calculate_alignments()
-        return aligner.calculate_proportions_and_motifs(self.n_records, self.avg_length)
+        if aligner.fuzzy_matches == 0:
+            return None
+        else:
+            return aligner.calculate_proportions_and_motifs(self.n_records, self.avg_length)
 
     def _analyze_peaks(self, sequence: SequenceData) -> None:
         """Analyze peaks in sequence data"""
@@ -200,9 +205,20 @@ class SequenceAnalyzer:
         """Main analysis method"""
         self._load_bio_records()
         self.sequences = self._initialize_sequences()
+        failed_sequences = []
 
         for sequence in self.sequences:
-            self._process_sequence(sequence)
+            try:
+                self._process_sequence(sequence)
+            except Exception as e:
+                failed_sequences.append(sequence)
+                logging.error(f"Error processing sequence: {str(e)}", exc_info=True)
+                continue
+
+        self.sequences = [
+            seq for seq in self.sequences
+            if seq.sequence not in [empty_seq.sequence for empty_seq in failed_sequences]
+        ]
 
         self.result_data = self._prepare_result_data()
         return self.result_data
