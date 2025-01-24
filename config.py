@@ -11,7 +11,7 @@ class BaseConfig:
     # File upload configuration
     UPLOAD_FOLDER = 'static/sessions/'
     ALLOWED_EXTENSIONS = {'fastq', 'fq'}
-    MAX_CONTENT_LENGTH = 500 * 1024 * 1024  # 500MB max file size
+    MAX_CONTENT_LENGTH = 1024 ** 3  # 1GB max file size
 
     # Celery configuration
     CELERY = {
