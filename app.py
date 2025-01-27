@@ -7,6 +7,8 @@ import secrets
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Dict, Any
+from logging.handlers import RotatingFileHandler
+
 
 # Third-party imports
 import pandas as pd
@@ -35,7 +37,38 @@ from utils import (
 )
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+
+def setup_logger(app):
+    # Create logs directory if it doesn't exist
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+
+    # Set up file handler
+    file_handler = RotatingFileHandler(
+        'logs/app.log',
+        maxBytes=1024 * 1024,  # 1MB
+        backupCount=10,
+        encoding='utf-8'
+    )
+
+    # Set log format
+    formatter = logging.Formatter(
+        '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'
+    )
+    file_handler.setFormatter(formatter)
+
+    # Set the log level for the file handler
+    file_handler.setLevel(logging.INFO)
+
+    # Add handlers to the app logger
+    app.logger.addHandler(file_handler)
+    app.logger.setLevel(logging.DEBUG)
+
+    # Also handle werkzeug (Flask's built-in server) logs
+    werkzeug_logger = logging.getLogger('werkzeug')
+    werkzeug_logger.addHandler(file_handler)
+
+    return app
 
 
 class DataProcessingError(Exception):
@@ -69,7 +102,17 @@ def celery_init_app(app: Flask) -> Celery:
 
 
 app = Flask(__name__)
+app = setup_logger(app)
 app.config.from_object(config['default'])
+app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 ** 3
+
+# Increase Werkzeug's internal buffer size
+from werkzeug.serving import WSGIRequestHandler
+WSGIRequestHandler.protocol_version = "HTTP/1.1"
+# Access the environment variables using os.environ
+# app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+# app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+
 config['default'].init_app(app)
 # Bootstrap-Flask requires this line
 bootstrap = Bootstrap5(app)
@@ -77,12 +120,59 @@ bootstrap = Bootstrap5(app)
 csrf = CSRFProtect(app)
 celery_app = celery_init_app(app)
 
+# Celery configuration
+celery_app.conf.update(
+    task_time_limit=3600,  # 1 hour
+    task_soft_time_limit=3300,  # 55 minutes
+    worker_max_memory_per_child=1000000,  # 1GB
+    worker_max_tasks_per_child=1,  # Restart worker after each task
+)
+
 foo = secrets.token_urlsafe(16)
 app.secret_key = foo
 #
 # Initialize Flask-Mail
 mail = Mail(app)
 
+@app.before_request
+def log_request_info():
+    app.logger.debug('Headers: %s', dict(request.headers))
+    # app.logger.debug('Body: %s', request.get_data())
+
+@app.after_request
+def log_response_info(response):
+    try:
+        # Metadata to log
+        metadata = {
+            'status_code': response.status_code,
+            'url': request.url,
+            'method': request.method,
+        }
+
+        # Log errors or relevant metadata
+        if response.status_code >= 400:
+            app.logger.error(f"Error response: {metadata}, reason: {response.status}")
+        else:
+            app.logger.debug(f"Successful response: {metadata}")
+    except Exception as e:
+        app.logger.error(f"Error logging response: {str(e)}")
+
+    return response
+
+@app.errorhandler(404)
+def not_found_error(error):
+    app.logger.error('Page not found: %s', (request.path))
+    return 'Page not found', 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    app.logger.error('Server Error: %s', str(error), exc_info=True)
+    return 'Internal server error', 500
+
+@app.errorhandler(Exception)
+def unhandled_exception(e):
+    app.logger.error('Unhandled Exception: %s', str(e), exc_info=True)
+    return 'Internal Server Error', 500
 
 # Utility functions
 def allowed_file(filename: str) -> bool:
@@ -156,47 +246,55 @@ def index():
     form = InputForm()
 
     if not form.validate_on_submit():
+        app.logger.warning(f"Form validation failed: {form.errors}")
         return render_template('index.html', form=form, page='index')
+    else:
+        app.logger.info("Form validated successfully")
+        try:
+            # Process sequences
+            sequences = form.process_sequences()
 
-    try:
-        # Process sequences
-        sequences = form.process_sequences()
+            # Handle file upload
+            file = form.file.data
+            if not file or not allowed_file(file.filename):
+                raise ValueError("Invalid file type")
 
-        # Handle file upload
-        file = form.file.data
-        if not file or not allowed_file(file.filename):
-            raise ValueError("Invalid file type")
+            filename = secure_filename(file.filename)
+            # Create session directory
+            new_dir = Path(app.config['UPLOAD_FOLDER']) / str(form.session_name.data)
 
-        filename = secure_filename(file.filename)
-        # Create session directory
-        new_dir = Path(app.config['UPLOAD_FOLDER']) / str(form.session_name.data)
+            # Ensure directory exists
+            ensure_directory_exists(new_dir)
 
-        # Ensure directory exists
-        ensure_directory_exists(new_dir)
+            # Save file
+            # file.save(new_dir / filename)
+            try:
+                file.save(new_dir / filename)
+                app.logger.info(f"File {filename} has been saved!")
+            except Exception as e:
+                app.logger.error(f"Error saving file: {e}")
 
-        # Save file
-        file.save(new_dir / filename)
+            # Create parameters
+            parameters = form.create_parameters_dict(filename, str(new_dir))
 
-        # Create parameters
-        parameters = form.create_parameters_dict(filename, str(new_dir))
+            # Generate configuration
+            generate_config(sequences, parameters)
 
-        # Generate configuration
-        generate_config(sequences, parameters)
+            # Store session data
+            session['session'] = form.session_name.data
+            session['input_data'] = {
+                'sequences': {item['type']: item['sequence'] for item in sequences},
+                'parameters': parameters,
+                'session_name': form.session_name.data
+            }
 
-        # Store session data
-        session['session'] = form.session_name.data
-        session['input_data'] = {
-            'sequences': {item['type']: item['sequence'] for item in sequences},
-            'parameters': parameters,
-            'session_name': form.session_name.data
-        }
+            return redirect(url_for('results'))
 
-        return redirect(url_for('results'))
-
-    except Exception as e:
-        logger.error(f"Error processing form: {e}")
-        # flash(f"An error occurred: {str(e)}", 'error')
-        return render_template('index.html', form=form, page='index')
+        except Exception as e:
+            app.logger.warning(f"Form validation failed: {form.errors}")
+            app.logger.error(f"Error processing form: {e}")
+            return render_template('index.html', form=form, page='index')
+        # return render_template('index.html', form=form, page='index')
 
 
 @app.route('/contacts')
@@ -268,7 +366,7 @@ def create_merged_dataframe(sequences: list) -> pd.DataFrame:
 
         return merged_df
     except Exception as e:
-        logger.error(f"Failed to create merged DataFrame: {e}")
+        app.logger.error(f"Failed to create merged DataFrame: {e}")
         raise DataProcessingError(f"DataFrame merge failed: {e}")
 
 
@@ -325,10 +423,10 @@ def data_processing(data: Dict[str, Any]) -> Dict[str, str]:
             for future in futures:
                 future.result()
 
-        logger.info(f"Successfully processed data for session {output['session_id']}")
+        app.logger.info(f"Successfully processed data for session {output['session_id']}")
 
     except Exception as e:
-        logger.error(f"Error processing data for session {output['session_id']}: {e}")
+        app.logger.error(f"Error processing data for session {output['session_id']}: {e}")
 
     finally:
         return output
@@ -393,7 +491,7 @@ def results():
                                page='results')
 
     except Exception as e:
-        logger.error(f"Error processing results: {e}")
+        app.logger.error(f"Error processing results: {e}")
         # flash("An error occurred while processing results", 'error')
         return redirect(url_for('index'))
 
@@ -483,16 +581,5 @@ def task_result(id: str) -> object:
         return jsonify({"error": "An error occurred while processing the task."}), 500
 
 
-# # Error handlers
-# @app.errorhandler(404)
-# def not_found_error(error):
-#     return render_template('404.html'), 404
-#
-#
-# @app.errorhandler(500)
-# def internal_error(error):
-#     return render_template('500.html'), 500
-
-
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(threaded=True, debug=True)

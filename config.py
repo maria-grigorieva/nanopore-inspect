@@ -11,7 +11,9 @@ class BaseConfig:
     # File upload configuration
     UPLOAD_FOLDER = 'static/sessions/'
     ALLOWED_EXTENSIONS = {'fastq', 'fq'}
-    MAX_CONTENT_LENGTH = 1024 ** 3  # 1GB max file size
+    MAX_CONTENT_LENGTH = 5 * 1024 ** 3  # 1GB max file size
+    # Increase request timeouts
+    SEND_FILE_MAX_AGE_DEFAULT = 0
 
     # Celery configuration
     CELERY = {
@@ -23,8 +25,10 @@ class BaseConfig:
     # Mail configuration
     MAIL_SERVER = 'smtp.yandex.ru'
     MAIL_PORT = 465
-    MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
-    MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    # MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
+    # MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    MAIL_USERNAME = os.getenv('MAIL_USERNAME')
+    MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
     MAIL_USE_TLS = False
     MAIL_USE_SSL = True
 

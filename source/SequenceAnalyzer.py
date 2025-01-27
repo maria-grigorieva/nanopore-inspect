@@ -11,6 +11,7 @@ from .DataSmoother import DataSmoother
 from .LevenshteinAligner import LevenshteinBio
 from .PeakAnalyzer import PeakAnalyzer
 import logging
+from itertools import islice
 
 
 @dataclass
@@ -84,9 +85,26 @@ class SequenceAnalyzer:
             for key, value in config['Sequences'].items()
         ]
 
+    def _load_records_in_chunks(self, chunk_size=10000):
+        records = []
+        with open(self.parameters.file_path, 'rt') as handle:
+            # Create iterator
+            seq_iterator = SeqIO.parse(handle, "fastq")
+
+            while True:
+                # Get next chunk of sequences
+                chunk = list(islice(seq_iterator, chunk_size))
+                if not chunk:
+                    break
+
+                records.extend(chunk)
+
+        return records
+
     def _load_bio_records(self) -> None:
         """Load biological records from file"""
         self.records = list(SeqIO.parse(self.parameters.file_path, "fastq"))
+        # self.records = self._load_records_in_chunks()
         self.n_records = len(self.records)
         self.sequence_strings = self._biorecords_to_array()
         self.avg_length = int(np.mean([len(s) for s in self.sequence_strings]))
