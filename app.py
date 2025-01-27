@@ -5,6 +5,7 @@ import logging
 import os
 import secrets
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Dict, Any
 
@@ -68,9 +69,16 @@ def celery_init_app(app: Flask) -> Celery:
     return celery_app
 
 
-app = Flask(__name__)
-app.config.from_object(config['default'])
-config['default'].init_app(app)
+app = Flask(__name__, static_folder='static', static_url_path='/nanoins/static')
+#, static_folder='static', static_url_path='/nanoins/static')
+app.config.from_object(config['production'])
+app.config['APPLICATION_ROOT'] = '/nanoins'
+app.config['URL_PREFIX'] = '/nanoins'
+from werkzeug.middleware.proxy_fix import ProxyFix
+
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+#app.config['SERVER_NAME'] = 'https://93.180.45.14/nanoins:5000'
+config['production'].init_app(app)
 # Bootstrap-Flask requires this line
 bootstrap = Bootstrap5(app)
 # Flask-WTF requires this line
@@ -190,8 +198,8 @@ def index():
             'parameters': parameters,
             'session_name': form.session_name.data
         }
-
-        return redirect(url_for('results'))
+        return redirect(f"{app.config['URL_PREFIX']}{url_for('results')}")
+        #return redirect(url_for('results', _external=True))
 
     except Exception as e:
         logger.error(f"Error processing form: {e}")
@@ -226,9 +234,11 @@ def experiment(sessionID):
                 'parameters': parameters,
                 'session_name': sessionID}
         session['input_data'] = data
-        return redirect(url_for('results'))
+        return redirect(f"{app.config['URL_PREFIX']}{url_for('results')}")
+        #return redirect(url_for('results'))
     except Exception as e:
-        return redirect(url_for('no_results'))
+        return redirect(f"{app.config['URL_PREFIX']}{url_for('no_results')}")
+        #return redirect(url_for('no_results'))
 
 
 @app.route('/delete/<sessionID>')
@@ -236,7 +246,8 @@ def delete(sessionID):
     base_directory = app.config['UPLOAD_FOLDER']
     remove_session_dir(base_directory, sessionID)
     session['input_data'] = None
-    return redirect(url_for('sessions'))
+    return redirect(f"{app.config['URL_PREFIX']}{url_for('sessions')}")
+#    return redirect(url_for('sessions', _external=True))
 
 
 def create_merged_dataframe(sequences: list) -> pd.DataFrame:
@@ -341,9 +352,28 @@ def no_results():
 
 @app.route('/results')
 def results():
-    """Handle results page requests"""
-    if 'input_data' not in session or session['input_data'] is None:
-        return render_template('no_results.html', page='results')
+
+    hidden_session_id = request.args.get('id')
+    if hidden_session_id:
+        base_directory = app.config['UPLOAD_FOLDER']
+        try:
+            directory_path = os.path.join(base_directory, hidden_session_id)
+            parameters, sequences = read_config(directory_path)
+            parameters['filename'] = os.path.basename(parameters['input_file'])
+            parameters['new_dir'] = directory_path
+            data = {'sequences': sequences,
+                    'parameters': parameters,
+                    'session_name': hidden_session_id
+                    }
+            session['input_data'] = data
+        except Exception as e:
+           return redirect(f"{app.config['URL_PREFIX']}{url_for('no_results')}")
+            # return redirect(url_for('no_results'))
+
+    else:
+        """Handle results page requests"""
+        if 'input_data' not in session or session['input_data'] is None:
+            return render_template('no_results.html', page='results')
 
     try:
         data = session['input_data']
@@ -438,7 +468,7 @@ def send_email_test():
         return f"Failed to send email. Error: {str(e)}"
 
 
-@app.route("/result/<id>", methods=['GET', 'POST'])
+@app.route("/result/<id>", methods=['GET', 'POST'], endpoint='result')
 def task_result(id: str) -> object:
     """
     Handle the result of an asynchronous task.
@@ -473,9 +503,11 @@ def task_result(id: str) -> object:
                 return jsonify({"error": "Failed to send email."}), 500
 
             # Redirect to experiment page
-            return redirect(url_for('experiment', sessionID=session_id))
+            return redirect(f"{app.config['URL_PREFIX']}{url_for('experiment', sessionID=session_id)}")
+            #return redirect(url_for('experiment', sessionID=session_id))
         else:
             # Task is still in progress
+            #return render_template(f"{app.config['URL_PREFIX']}{url_for('results')}")
             return render_template('in_progress.html', result_id=id, page='results')
 
     except Exception as e:
@@ -483,16 +515,21 @@ def task_result(id: str) -> object:
         return jsonify({"error": "An error occurred while processing the task."}), 500
 
 
+@app.route("/debug")
+def debug_url():
+    result_url = url_for('result', id='test_id', _external=True)
+    return f"Generated URL: {result_url}"
+
 # Error handlers
-@app.errorhandler(404)
-def not_found_error(error):
-    return render_template('404.html'), 404
+#@app.errorhandler(404)
+#def not_found_error(error):
+#    return render_template('404.html'), 404
 
 
-@app.errorhandler(500)
-def internal_error(error):
-    return render_template('500.html'), 500
+#@app.errorhandler(500)
+#def internal_error(error):
+#    return render_template('500.html'), 500
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)
