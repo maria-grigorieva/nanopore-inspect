@@ -418,27 +418,34 @@ def data_processing(data: Dict[str, Any]) -> Dict[str, str]:
             )
         }
 
-        # Create merged DataFrame
-        merged_df = create_merged_dataframe(output_data['sequences'])
+        try:
+            # Create merged DataFrame
+            merged_df = create_merged_dataframe(output_data['sequences'])
 
-        # Use ThreadPoolExecutor for parallel I/O operations
-        with ThreadPoolExecutor() as executor:
-            # Submit all save tasks
-            futures = [
-                executor.submit(save_json, file_paths['json'], output_data),
-                executor.submit(save_csv, file_paths['csv'], merged_df),
-                executor.submit(save_plot, plots['prop_plot'], file_paths['prop_plot']),
-                executor.submit(save_plot, plots['abs_plot'], file_paths['abs_plot'])
-            ]
+            # Use ThreadPoolExecutor for parallel I/O operations
+            with ThreadPoolExecutor() as executor:
+                # Submit all save tasks
+                futures = [
+                    executor.submit(save_json, file_paths['json'], output_data),
+                    executor.submit(save_csv, file_paths['csv'], merged_df),
+                    executor.submit(save_plot, plots['prop_plot'], file_paths['prop_plot']),
+                    executor.submit(save_plot, plots['abs_plot'], file_paths['abs_plot'])
+                ]
 
-            # Wait for all tasks to complete and check for exceptions
-            for future in futures:
-                future.result()
+                # Wait for all tasks to complete and check for exceptions
+                for future in futures:
+                    future.result()
 
-        app.logger.info(f"Successfully processed data for session {output['session_id']}")
+            app.logger.info(f"Successfully processed data for session {output['session_id']}")
+            output['success'] = True
+        except Exception as e:
+            app.logger.error(f"It seems that no references have been found in the library: {e}")
+            app.logger.debug(output)
+            output['success'] = False
 
     except Exception as e:
         app.logger.error(f"Error processing data for session {output['session_id']}: {e}")
+        output['success'] = False
 
     finally:
         return output
@@ -481,10 +488,13 @@ def results():
         if not sequences_file.exists():
             # Start async processing
             result = data_processing.delay(data)
-            return render_template('async_result.html',
-                                   result_id=result.id,
-                                   parameters=data['parameters'],
-                                   page='results')
+            if result.state == 'FAILURE':
+                return render_template('no_results.html', page='results')
+            else:
+                return render_template('async_result.html',
+                                       result_id=result.id,
+                                       parameters=data['parameters'],
+                                       page='results')
 
         # Load and process output data
         output_data = load_output_data(sequences_file)
@@ -620,5 +630,5 @@ def debug_url():
     return f"Generated URL: {result_url}"
   
 if __name__ == '__main__':
-    app.run(threaded=True, debug=True)
+    app.run(threaded=True, debug=False)
 
