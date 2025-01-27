@@ -603,7 +603,7 @@ def task_result(id: str) -> object:
                 return jsonify({"error": "Task result is incomplete."}), 500
 
             # Construct path and send email
-            experiment_path = request.url_root + 'experiment/' + session_id
+            experiment_path = request.referrer + '?id=' + session_id
             try:
                 send_email(email, session_id, experiment_path)
                 logging.info(f"Email sent to {email} for session {session_id}.")

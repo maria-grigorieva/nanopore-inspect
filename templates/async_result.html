@@ -8,7 +8,7 @@
     {% include 'description.html' %}
 {% endblock %}
 <div class="container">
-    {% if parameters.success == True %}
+    {% if parameters.email %}
 	<!-- <h2>You will be notified by email ({{ parameters.email }}) when the task has finished. Or check <a href="result/{{ result_id }}">this link</a> later.</h2>-->
 	    <h2>You will be notified by email ({{ parameters.email }}) when the task has finished. Or check <a href="https://93.180.45.14/nanoins/result/{{result_id}}">this link</a> later.</h2>
     {% else %}
