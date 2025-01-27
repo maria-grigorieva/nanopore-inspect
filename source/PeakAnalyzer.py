@@ -232,11 +232,13 @@ class PeakAnalyzer:
         extremums = []
         for i in range(len(peak_indices)):
             peak_index = peak_indices[i]
-            extremums.append(self.aggregate_peak_values(i, reads_array,
+            aggregated_peak = self.aggregate_peak_values(i, reads_array,
                                                         proportion_array,
                                                         consensus_array,
                                                         peak_index,
-                                                        peak_info))
+                                                        peak_info)
+            if aggregated_peak is not None:
+                extremums.append(aggregated_peak)
 
         for i in range(1, len(extremums)):
             extremums[i]['peak_dist'] = extremums[i]['peak_index'] - extremums[i - 1]['peak_index']
@@ -245,7 +247,8 @@ class PeakAnalyzer:
 
     @staticmethod
     def aggregate_peak_values(step, reads_array,
-                              proportion_array, consensus_array, peak_index, peak_info):
+                              proportion_array, consensus_array, peak_index, peak_info,
+                              min_proportion=0.05):
         """Calculate aggregate values for a single peak"""
         left_bases = peak_info[step]['left_base']
         right_bases = peak_info[step]['right_base']
@@ -253,14 +256,17 @@ class PeakAnalyzer:
         total_occurrences = np.round(np.sum(reads_array[left_bases:right_bases]), 4)
         consensus = consensus_array[int(peak_index)]
 
-        return {
-            'peak_index': int(peak_index),
-            'left_bases': int(left_bases),
-            'right_bases': int(right_bases),
-            'total_proportion': float(total_proportion),
-            'total_reads': int(total_occurrences),
-            'motif_consensus': str(consensus)
-        }
+        if total_proportion <= min_proportion:
+            return None
+        else:
+            return {
+                'peak_index': int(peak_index),
+                'left_bases': int(left_bases),
+                'right_bases': int(right_bases),
+                'total_proportion': float(total_proportion),
+                'total_reads': int(total_occurrences),
+                'motif_consensus': str(consensus)
+            }
 
     @staticmethod
     def calculate_average_peaks_distance(peaks):

@@ -1,4 +1,5 @@
 # app/forms/input_form.py
+from flask import current_app
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileRequired, FileAllowed
 from wtforms import (
@@ -15,7 +16,7 @@ from datetime import datetime
 
 from .constants import SimilarityAlgorithm, SmoothingType, FormConfig
 from .validators import FileValidator
-
+import logging
 
 class SequenceItem(FlaskForm):
     """Form for individual sequence items"""
@@ -121,6 +122,7 @@ class InputForm(FlaskForm):
     def __init__(self, *args, **kwargs):
         super(InputForm, self).__init__(*args, **kwargs)
         self.file_validator = FileValidator()
+        self.logger = current_app.logger if current_app else logging.getLogger(__name__)
 
 
     def validate_session_name(self, field):
@@ -129,12 +131,25 @@ class InputForm(FlaskForm):
             raise ValidationError("Session name already exists")
 
     def validate_file(self, field):
-        if field.data:
-            if not self.file_validator.validate_fastq(field.data.filename):
-                raise ValidationError('File must be in .fastq format')
+        try:
+            if field.data:
+                self.logger.info(f"Validating file: {field.data.filename}")
+                if not self.file_validator.validate_fastq(field.data.filename):
+                    self.logger.warning(f"Invalid file format: {field.data.filename}")
+                    raise ValidationError('File must be in .fastq format')
 
-            if not self.file_validator.validate_file_size(field.data):
-                raise ValidationError('File size exceeds maximum limit (100MB)')
+                if not self.file_validator.validate_file_size(field.data):
+                    self.logger.warning(
+                        f"File size exceeds limit: {field.data.filename}"
+                    )
+                    raise ValidationError('File size exceeds maximum limit (100MB)')
+
+                self.logger.info(f"File validation successful: {field.data.filename}")
+        except Exception as e:
+            self.logger.error(
+                f"Error validating file {field.data.filename if field.data else 'None'}: {str(e)}"
+            )
+            raise
 
     def validate_items(self, field):
         if len(field.data) < FormConfig.MIN_SEQUENCES:
