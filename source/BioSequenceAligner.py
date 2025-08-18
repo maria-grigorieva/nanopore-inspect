@@ -1,7 +1,15 @@
-from abc import ABC, abstractmethod
-from Bio import SeqIO
 import os
 import tempfile
+from abc import ABC, abstractmethod
+
+import numpy as np
+import pandas as pd
+from Bio import SeqIO
+from Bio.Align import MultipleSeqAlignment
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
+from Bio.motifs import Motif
+
 
 class BioSequenceAligner(ABC):
     """
@@ -56,6 +64,45 @@ class BioSequenceAligner(ABC):
             self.db_fasta_file = db_fasta_file.name
             SeqIO.convert(self.db_file, "fastq", self.db_fasta_file, "fasta")
         print(f"Converted {self.db_file} to {self.db_fasta_file}")
+
+    @staticmethod
+    def calculate_consensus(subset):
+        def pad_sequences(seqs):
+            max_length = max(len(seq) for seq in seqs)
+            padded_seqs = [seq + '-' * (max_length - len(seq)) for seq in seqs]
+            return padded_seqs
+
+        # Subset contains the sequences
+        records = [SeqRecord(Seq(seq), id=f"seq{i + 1}") for i, seq in
+                   enumerate(pad_sequences(subset))]
+
+        msa = MultipleSeqAlignment(records)
+        alignment = msa.alignment
+        try:
+            motif = Motif("ACGT", alignment)
+            return str(motif.consensus)
+        except Exception as e:
+            print(e)
+            return str('')
+
+    def calculate_proportions_and_motifs(self, n_records, avg_length):
+        unique_values, counts = np.unique(self.matches_df['position'], return_counts=True)
+        consensus_values = []
+        for unique_occurrence in unique_values:
+            subset = self.matches_df[self.matches_df['position'] == unique_occurrence]['match'].values
+            consensus_values.append(self.calculate_consensus(subset))
+
+        data = [
+            {'index': value,
+             'reads': count,
+             'proportion': round(count / n_records, 4),
+             'consensus': consensus}
+            for value, count, consensus in zip(unique_values, counts, consensus_values)]
+
+        df = pd.DataFrame(data)
+        all_indexes = pd.Series(range(0, avg_length))
+        result = all_indexes.to_frame('index').merge(df, on='index', how='left').fillna(0)
+        return result
 
     @abstractmethod
     def calculate_alignments(self):

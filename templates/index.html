@@ -56,6 +56,12 @@
   </li>
   <li class="list-group-item">
       <div class="form-group">
+                <label for="fuzzy_similarity">Fuzzy Similarity Matcher</label>
+          {{ form.fuzzy_similarity(class="form-control", data_bs_toggle="tooltip", data_bs_placement="top", title="Choose Levenshtein for smaller DNA libraries (<1000 reads) and BLASTn for larger ones") }}
+            </div>
+  </li>
+  <li class="list-group-item">
+      <div class="form-group">
                 <label for="threshold">Threshold</label>
                 {{ form.threshold(size=10, class="form-control", data_bs_toggle="tooltip", data_bs_placement="top", title="Enter a threshold for the string similarity level [0,1]") }}
                 {% if form.threshold.errors %}
@@ -70,20 +76,7 @@
   <li class="list-group-item">
       <div class="form-group">
                 <label for="smoothing">Smoothing</label>
-                {{ form.smoothing(class="form-control-file") }}
-            </div>
-  </li>
-  <li class="list-group-item">
-      <div class="form-group">
-                <label for="email">Email</label>
-                {{ form.email(size=50, class="form-control") }}
-                  {% if form.email.errors %}
-                    <div class="text-danger">
-                        {% for error in form.email.errors %}
-                            <p>{{ error }}</p>
-                        {% endfor %}
-                    </div>
-                {% endif %}
+                {{ form.smoothing(class="form-control") }}
             </div>
   </li>
   <li class="list-group-item">
@@ -117,9 +110,17 @@
                 <tr id="items-${formCount}-type">
                     <td><input class="form-control" id="items-${formCount}-type" name="items-${formCount}-type" required type="text" value=""></td>
                     <td><input class="form-control" id="items-${formCount}-sequence" name="items-${formCount}-sequence" required type="text" value=""></td>
+                    <td><button type="button" class="btn btn-danger btn-sm remove-item">Remove</button></td>
                 </tr>
         `;
         document.getElementById('items').appendChild(newItem);
+    });
+
+    // Add event listener for remove buttons
+    document.getElementById('items').addEventListener('click', function(event) {
+        if (event.target.classList.contains('remove-item')) {
+            event.target.closest('tr').remove();
+        }
     });
 
 </script>

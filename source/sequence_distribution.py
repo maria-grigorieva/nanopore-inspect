@@ -19,7 +19,6 @@ from confsmooth import confsmooth
 from scipy.stats import variation
 from Bio.Align import AlignInfo
 
-
 def find_fuzzy_substring_matches(s, reference, treshold):
     length = len(reference)
     substrings = [s[i:i + length] for i in range(len(s) - length + 1)]
@@ -228,7 +227,7 @@ def main(SESSION):
                                  'limit': LIMIT,
                                  'threshold': THRESHOLD,
                                  'file_path': FILE_PATH,
-                                 'avg_noise_level': np.round(np.mean([item['noise_level'] for item in SEQUENCES if 'noise_level' in item]),4)
+                                 'avg_noise_level': float(np.round(np.mean([item['noise_level'] for item in SEQUENCES if 'noise_level' in item]),4))
                                  }
 
     return result_data

@@ -1,0 +1,93 @@
+#chart2 {
+        display: none;
+    }
+
+.input-data-card {
+    background: white;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.card-header {
+    background: #f8f9fa;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.card-title {
+    font-size: 1rem;
+    font-weight: bold;
+    color: #2c3e50;
+    display: flex;
+    align-items: center;
+    margin: 0;
+}
+
+.input-data-table {
+    width: 100%;
+    border-spacing: 0;
+}
+
+.input-data-table th,
+.input-data-table td {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    font-size: 0.875rem;
+    line-height: 1.2;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.input-data-table th {
+    font-weight: bold;
+    color: #495057;
+    display: flex;
+    align-items: center;
+    background: #f9f9f9;
+}
+
+.input-data-table tr:last-child th,
+.input-data-table tr:last-child td {
+    border-bottom: none;
+}
+
+.input-data-table td {
+    color: #343a40;
+}
+
+.filename {
+    font-family: monospace;
+    background-color: #f1f3f5;
+    padding: 0.25rem;
+    border-radius: 4px;
+    word-break: break-word;
+}
+
+.input-sequences-table th {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.2;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    font-weight: bold;
+    color: #495057;
+    align-items: center;
+    background: #f9f9f9;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .card-header {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .card-title {
+        font-size: 0.875rem;
+    }
+
+    .input-data-table th,
+    .input-data-table td {
+        padding: 0.4rem 0.5rem;
+        font-size: 0.75rem;
+    }
+}
