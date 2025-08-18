@@ -54,8 +54,8 @@ def load_output_data(file_path: Path) -> Dict:
         logger.error(f"Error loading output data: {e}")
         raise DataProcessingError(f"Failed to load output data: {e}")
 
-def ensure_directory_exists(directory: Path) -> None:
-    """Ensure directory exists, create if it doesn't"""
+def ensure_directory_exists(directory: Path):
+    """Ensure that the specified directory exists."""
     directory.mkdir(parents=True, exist_ok=True)
 
 def remove_session_dir(base_directory: str, session_id: str) -> None:

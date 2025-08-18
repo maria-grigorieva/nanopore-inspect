@@ -35,6 +35,8 @@ from utils import (
     ensure_directory_exists,
     remove_session_dir,
 )
+from werkzeug.serving import WSGIRequestHandler
+WSGIRequestHandler.protocol_version = "HTTP/1.1"
 
 logging.basicConfig(level=logging.INFO)
 
@@ -80,14 +82,6 @@ class ConfigurationError(Exception):
     """Custom exception for configuration errors"""
     pass
 
-
-# Get environment configuration
-# env = os.environ.get('FLASK_ENV', 'default')
-# app, celery_app = create_app(env)
-
-# Make the app and celery instances available at module level
-# celery = celery_app
-#
 def celery_init_app(app: Flask) -> Celery:
     class FlaskTask(Task):
         def __call__(self, *args: object, **kwargs: object) -> object:
@@ -106,13 +100,6 @@ app = setup_logger(app)
 app.config.from_object(config['default'])
 app.config['MAX_CONTENT_LENGTH'] = 5 * 1024 ** 3
 
-# Increase Werkzeug's internal buffer size
-from werkzeug.serving import WSGIRequestHandler
-WSGIRequestHandler.protocol_version = "HTTP/1.1"
-# Access the environment variables using os.environ
-# app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
-# app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
-
 config['default'].init_app(app)
 # Bootstrap-Flask requires this line
 bootstrap = Bootstrap5(app)
@@ -130,9 +117,6 @@ celery_app.conf.update(
 
 foo = secrets.token_urlsafe(16)
 app.secret_key = foo
-#
-# Initialize Flask-Mail
-mail = Mail(app)
 
 @app.before_request
 def log_request_info():
@@ -159,26 +143,10 @@ def log_response_info(response):
 
     return response
 
-@app.errorhandler(404)
-def not_found_error(error):
-    app.logger.error('Page not found: %s', (request.path))
-    return 'Page not found', 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    app.logger.error('Server Error: %s', str(error), exc_info=True)
-    return 'Internal server error', 500
-
-@app.errorhandler(Exception)
-def unhandled_exception(e):
-    app.logger.error('Unhandled Exception: %s', str(e), exc_info=True)
-    return 'Internal Server Error', 500
-
 # Utility functions
 def allowed_file(filename: str) -> bool:
     """Check if file extension is allowed"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
-
 
 def process_sequence_data(sequence_data: Dict) -> Dict:
     """Process sequence data for template rendering"""
@@ -266,8 +234,6 @@ def index():
             # Ensure directory exists
             ensure_directory_exists(new_dir)
 
-            # Save file
-            # file.save(new_dir / filename)
             try:
                 file.save(new_dir / filename)
                 app.logger.info(f"File {filename} has been saved!")
@@ -294,7 +260,6 @@ def index():
             app.logger.warning(f"Form validation failed: {form.errors}")
             app.logger.error(f"Error processing form: {e}")
             return render_template('index.html', form=form, page='index')
-        # return render_template('index.html', form=form, page='index')
 
 
 @app.route('/contacts')
@@ -306,15 +271,11 @@ def contacts():
 def sessions():
     base_directory = app.config['UPLOAD_FOLDER']
     all_sessions_list = process_directories(base_directory)
-
     return render_template('sessions.html', sessions=all_sessions_list, page='sessions')
 
-
-#
 @app.route('/experiment/<sessionID>')
 def experiment(sessionID):
     base_directory = app.config['UPLOAD_FOLDER']
-    # app.config['UPLOAD_FOLDER']
     try:
         directory_path = os.path.join(base_directory, sessionID)
         parameters, sequences = read_config(directory_path)
@@ -342,10 +303,8 @@ def create_merged_dataframe(sequences: list) -> pd.DataFrame:
     try:
         # Get first sequence's occurrences for initialization
         merged_df = sequences[0]['occurrences'][['index']].copy()
-
         # Dictionary comprehension for sequence mapping
         sequence_dict = {seq['type']: seq['occurrences'] for seq in sequences}
-
         # Merge all sequences
         for name, df in sequence_dict.items():
             column_mapping = {
@@ -354,16 +313,11 @@ def create_merged_dataframe(sequences: list) -> pd.DataFrame:
                 'consensus': f'{name}_consensus',
                 'smoothed': f'{name}_smoothed'
             }
-            # Add smoothed column mapping only if it exists
-            # if 'smoothed' in df.columns:
-            #     column_mapping['smoothed'] = f'{name}_smoothed'
-
             merged_df = merged_df.merge(
                 df.rename(columns=column_mapping),
                 on='index',
                 how='outer'
             )
-
         return merged_df
     except Exception as e:
         app.logger.error(f"Failed to create merged DataFrame: {e}")
@@ -374,8 +328,7 @@ def create_merged_dataframe(sequences: list) -> pd.DataFrame:
 def data_processing(data: Dict[str, Any]) -> Dict[str, str]:
     """Main data processing function"""
     output = {
-        'session_id': Path(data['parameters']['new_dir']).name,
-        'email': data['parameters']['email']
+        'session_id': Path(data['parameters']['new_dir']).name
     }
 
     try:
@@ -492,58 +445,14 @@ def results():
 
     except Exception as e:
         app.logger.error(f"Error processing results: {e}")
-        # flash("An error occurred while processing results", 'error')
         return redirect(url_for('index'))
-
-
-def send_email(email, sessionID, path):
-    recipient = email
-    subject = f'NanoporeInspect: session {sessionID} results are ready'
-    message_body = f'The results are available in the web application by the link: {path}'
-    msg = Message(
-        subject=subject,
-        sender=app.config['MAIL_USERNAME'],
-        recipients=[recipient]
-    )
-    msg.body = message_body  # Plain text email body
-
-    try:
-        mail.send(msg)
-        return f"Email sent to {recipient}!"
-    except Exception as e:
-        return f"Failed to send email. Error: {str(e)}"
-
-
-@app.route('/send_email')
-def send_email_test():
-    recipient = 'magsend@gmail.com'
-    subject = 'TEST from NanoporeInspect'
-    message_body = 'Test from NanoporeInspect'
-    sender = app.config['MAIL_USERNAME']
-    print(sender)
-
-    msg = Message(
-        subject=subject,
-        sender=app.config['MAIL_USERNAME'],
-        recipients=[recipient]
-    )
-    msg.body = message_body  # Plain text email body
-
-    try:
-        mail.send(msg)
-        return f"Email sent to {recipient}!"
-    except Exception as e:
-        return f"Failed to send email. Error: {str(e)}"
-
 
 @app.route("/result/<id>", methods=['GET', 'POST'])
 def task_result(id: str) -> object:
     """
     Handle the result of an asynchronous task.
-
     Args:
         id (str): Task ID.
-
     Returns:
         Response: Redirect to the experiment page if ready, or renders an 'in progress' template.
     """
@@ -555,20 +464,10 @@ def task_result(id: str) -> object:
             # Extract task results
             task_data = result.result or {}
             session_id = task_data.get('session_id')
-            email = task_data.get('email')
 
-            if not session_id or not email:
+            if not session_id: # Removed email check
                 logging.error(f"Task {id} result is incomplete: {task_data}")
                 return jsonify({"error": "Task result is incomplete."}), 500
-
-            # Construct path and send email
-            experiment_path = request.url_root + 'experiment/' + session_id
-            try:
-                send_email(email, session_id, experiment_path)
-                logging.info(f"Email sent to {email} for session {session_id}.")
-            except Exception as e:
-                logging.error(f"Failed to send email for session {session_id}: {e}")
-                return jsonify({"error": "Failed to send email."}), 500
 
             # Redirect to experiment page
             return redirect(url_for('experiment', sessionID=session_id))
@@ -582,4 +481,6 @@ def task_result(id: str) -> object:
 
 
 if __name__ == '__main__':
+    # Production defaults
     app.run(threaded=True, debug=True)
+

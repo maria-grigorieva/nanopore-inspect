@@ -98,13 +98,13 @@ class InputForm(FlaskForm):
         default=SmoothingType.NONE.value
     )
 
-    email = StringField(
-        'Email',
-        validators=[
-            DataRequired(),
-            Email(message="Please enter a valid email address")
-        ]
-    )
+    # email = StringField(
+    #     'Email',
+    #     validators=[
+    #         DataRequired(),
+    #         Email(message="Please enter a valid email address")
+    #     ]
+    # )
 
     file = FileField(
         'fastq_file',
@@ -171,7 +171,7 @@ class InputForm(FlaskForm):
                 'fuzzy_similarity': self.fuzzy_similarity.data,
                 'threshold': self.threshold.data,
                 'smoothing': self.smoothing.data,
-                'email': self.email.data.lower().strip()
+                # 'email': self.email.data.lower().strip()
             }
         }
 
@@ -184,7 +184,7 @@ class InputForm(FlaskForm):
             'filename': filename,
             'new_dir': new_dir,
             'smoothing': dict(self.smoothing.choices).get(self.smoothing.data),
-            'email': self.email.data.lower().strip(),
+            # 'email': self.email.data.lower().strip(),
             'datetime': str(datetime.now())
         }
 

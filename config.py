@@ -2,14 +2,22 @@
 import os
 import secrets
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 class BaseConfig:
     """Base configuration class"""
     # Basic Flask configuration
-    SECRET_KEY = os.environ.get('FLASK_SECRET_KEY', secrets.token_urlsafe(16))
+    SECRET_KEY = os.getenv('FLASK_SECRET_KEY', secrets.token_urlsafe(16))
+    redis_host = os.getenv("REDIS_HOST", "127.0.0.1")
+    redis_port = os.getenv("REDIS_PORT", 6379)
+    BROKER_URL = f"redis://{redis_host}:{redis_port}/0"
+    BACKEND_URL = f"redis://{redis_host}:{redis_port}/0"
 
     # File upload configuration
-    UPLOAD_FOLDER = 'static/sessions/'
+    #UPLOAD_FOLDER = 'static/sessions/'
     ALLOWED_EXTENSIONS = {'fastq', 'fq'}
     MAX_CONTENT_LENGTH = 5 * 1024 ** 3  # 1GB max file size
     # Increase request timeouts
@@ -17,20 +25,23 @@ class BaseConfig:
 
     # Celery configuration
     CELERY = {
-        "broker_url": "redis://localhost:6379/0",
-        "result_backend": "redis://localhost:6379/0",
+        "broker_url": BROKER_URL,
+        "result_backend": BACKEND_URL,
         "task_ignore_result": True,
     }
 
-    # Mail configuration
-    MAIL_SERVER = 'smtp.yandex.ru'
-    MAIL_PORT = 465
-    # MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
-    # MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
-    MAIL_USERNAME = os.getenv('MAIL_USERNAME')
-    MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
-    MAIL_USE_TLS = False
-    MAIL_USE_SSL = True
+    # # Mail configuration
+    # # MAIL_SERVER = 'smtp.yandex.ru'
+    # MAIL_SERVER = os.getenv('MAIL_SERVER')
+    # MAIL_PORT = os.getenv('MAIL_PORT')
+    # # MAIL_PORT = 465
+    # # MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
+    # # MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
+    # MAIL_USERNAME = os.getenv('MAIL_USERNAME')
+    # MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
+    # MAIL_USE_TLS = False
+    # MAIL_USE_SSL = True
+    UPLOAD_FOLDER = os.getenv('RESULTS_PATH')
 
     @staticmethod
     def init_app(app):
@@ -55,10 +66,13 @@ class ProductionConfig(BaseConfig):
     # Override with more secure production settings
     SECRET_KEY = os.environ.get('PRODUCTION_SECRET_KEY')
 
+    redis_host = os.getenv("REDIS_HOST", "127.0.0.1")
+    redis_url = f"redis://{redis_host}:6379/0"
+
     # Production Celery settings
     CELERY = {
-        "broker_url": os.environ.get('CELERY_BROKER_URL', "redis://localhost:6379/0"),
-        "result_backend": os.environ.get('CELERY_RESULT_BACKEND', "redis://localhost:6379/0"),
+        "broker_url": os.environ.get('CELERY_BROKER_URL', redis_url),
+        "result_backend": os.environ.get('CELERY_RESULT_BACKEND', redis_url),
         "task_ignore_result": True,
     }
 

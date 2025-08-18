@@ -42,8 +42,8 @@ class LevenshteinBio(BioSequenceAligner):
 
             # Find peaks in the scores array
             peaks, properties = find_peaks(
-                scores,
-                distance=self.peak_distance
+                scores
+                #distance=self.peak_distance
             )
 
             # Return line index and the positions/scores at peaks

@@ -3,7 +3,7 @@ from Bio import SeqIO
 import os
 import tempfile
 
-class BioSequenceAligner(ABC):
+class BenchmarkSequenceAligner(ABC):
     """
     Abstract base class for biological sequence alignment algorithms.
     """
