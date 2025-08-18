@@ -9,7 +9,6 @@ load_dotenv()
 
 class BaseConfig:
     """Base configuration class"""
-    # Basic Flask configuration
     SECRET_KEY = os.getenv('FLASK_SECRET_KEY', secrets.token_urlsafe(16))
     redis_host = os.getenv("REDIS_HOST", "127.0.0.1")
     redis_port = os.getenv("REDIS_PORT", 6379)
@@ -30,17 +29,6 @@ class BaseConfig:
         "task_ignore_result": True,
     }
 
-    # # Mail configuration
-    # # MAIL_SERVER = 'smtp.yandex.ru'
-    # MAIL_SERVER = os.getenv('MAIL_SERVER')
-    # MAIL_PORT = os.getenv('MAIL_PORT')
-    # # MAIL_PORT = 465
-    # # MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
-    # # MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
-    # MAIL_USERNAME = os.getenv('MAIL_USERNAME')
-    # MAIL_PASSWORD = os.getenv('MAIL_PASSWORD')
-    # MAIL_USE_TLS = False
-    # MAIL_USE_SSL = True
     UPLOAD_FOLDER = os.getenv('RESULTS_PATH')
 
     @staticmethod
