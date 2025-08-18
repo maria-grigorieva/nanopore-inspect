@@ -18,7 +18,6 @@ from celery.result import AsyncResult
 from wtforms.validators import ValidationError
 from flask import Flask, render_template, request, url_for, redirect, session, jsonify
 from flask_bootstrap import Bootstrap5
-from flask_mail import Mail, Message
 from flask_wtf import CSRFProtect
 from werkzeug.utils import secure_filename
 
