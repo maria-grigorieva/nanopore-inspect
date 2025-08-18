@@ -3,7 +3,6 @@ celery==5.4.0
 confsmooth==1.0.0
 flask==3.0.3
 Bootstrap-Flask==2.4.0
-flask-mail==0.10.0
 flask-wtf==1.2.1
 matplotlib==3.9.2
 numpy==2.0.2
@@ -16,5 +15,4 @@ statsmodels==0.14.3
 Werkzeug==3.0.4
 whittaker-eilers==0.1.3
 wtforms==3.1.2
-email_validator==2.2.0
 python-dotenv
